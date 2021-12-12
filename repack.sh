@@ -91,7 +91,7 @@ fastboot_extract(){
 }
 
 file_renamer(){
-    repackrename=$(dialog --stdout --inputbox "Do you want to rename your repack ROM? Leave it blank for default value:" 10 50)
+    repackrename="$(dialog --stdout --inputbox "Do you want to rename your repack ROM? Leave it blank for default value:" 10 50)"
     dialog --colors --yesno "Do you want to give your repack read and write permissions? If given, ROM will \Z1not boot\Z0 without magisk." 7 50
     if [ $? == 0 ]; then rw=1; else rw=0; fi
 }
@@ -329,34 +329,34 @@ select_mod(){
       "1")
       magisk_choose_dialog
       while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="\-Magisk+TWRP+DFE\-repack"
+      nameext="_Magisk+TWRP+DFE_repack"
       ;;
       "2")
       magisk_choose_dialog
-      nameext="\-Magisk+DFE\-repack"
+      nameext="_Magisk+DFE_repack"
       ;;
       "3")
       magisk_choose_dialog
-      while [ \-z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="\-Magisk+TWRP\-repack"
+      while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
+      nameext="_Magisk+TWRP_repack"
       ;;
       "4")
       while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="\-TWRP+DFE\-repack"
+      nameext="_TWRP+DFE_repack"
       ;;
       "5")
       while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="\-TWRP\-only\-repack"
+      nameext="_TWRP_only_repack"
       ;;
       "6")
-      nameext="\-DFE\-only\-repack"
+      nameext="_DFE_only_repack"
       ;;
       "7")
       magisk_choose_dialog
-      nameext="\-Magisk\-only\-repack"
+      nameext="_Magisk_only_repack"
       ;;
       "8")
-      nameext="\-only\-repack"
+      nameext="_only_repack"
       ;;
     esac
 }
@@ -591,13 +591,13 @@ final_act(){
         echo
         cd ../rom
         zip -r $repackname$nameext-Step1.zip META-INF *
-        mv $(find ../ -name "*.zip") /sdcard/Repacks/
+        mv $(find ../ -name '*.zip') /sdcard/Repacks/
     else
         echo -e "\e[1m\e[37mPacking rom files...\e[0m"
         echo
         cd $OUT
         zip -r $repackname$nameext.zip META-INF *
-        mv $(find . -name *.zip) /sdcard/Repacks/
+        mv $(find . -name '*.zip') /sdcard/Repacks/
     fi
     echo -e "\e[1;32mYour repacked rom is ready to flash. You can find it in /sdcard/Repacks/ \e[0m"
     sh cleanup.sh &> /dev/null
