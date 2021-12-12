@@ -329,34 +329,34 @@ select_mod(){
       "1")
       magisk_choose_dialog
       while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="-Magisk+TWRP+DFE-repack"
+      nameext="\-Magisk+TWRP+DFE\-repack"
       ;;
       "2")
       magisk_choose_dialog
-      nameext="-Magisk+DFE-repack"
+      nameext="\-Magisk+DFE\-repack"
       ;;
       "3")
       magisk_choose_dialog
-      while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="-Magisk+TWRP-repack"
+      while [ \-z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
+      nameext="\-Magisk+TWRP\-repack"
       ;;
       "4")
       while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="-TWRP+DFE-repack"
+      nameext="\-TWRP+DFE\-repack"
       ;;
       "5")
       while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="-TWRP-only-repack"
+      nameext="\-TWRP\-only\-repack"
       ;;
       "6")
-      nameext="-DFE-only-repack"
+      nameext="\-DFE\-only\-repack"
       ;;
       "7")
       magisk_choose_dialog
-      nameext="-Magisk-only-repack"
+      nameext="\-Magisk\-only\-repack"
       ;;
       "8")
-      nameext="-only-repack"
+      nameext="\-only\-repack"
       ;;
     esac
 }
@@ -410,7 +410,7 @@ get_image_size(){
 vendor_patch(){
     tune2fs -f -O ^read-only extracted/vendor.img &> /dev/null
     echo -e "\e[1m\e[37m Mounting vendor.img... \e[0m"
-    sh rw.sh extracted/vendor.img &> /dev/null    
+    sh rw.sh extracted/vendor.img #&> /dev/null    
     mount extracted/vendor.img tmp/
     echo -e "\e[1;32m Vendor image has temporarily been mounted.\e[0m"
     sh dfe.sh tmp/
@@ -585,18 +585,18 @@ final_act(){
         echo -e "\e[1m\e[37mPacking MIUI firmware files...\e[0m"
         echo
         cd output/MIUI/fw
-        zip "$repackname$nameext-Step2.zip" -1 -r META-INF *
+        zip -r $repackname$nameext-Step2.zip META-INF *
         echo
         echo -e "\e[1m\e[37mPacking MIUI rom files...\e[0m"
         echo
         cd ../rom
-        zip "$repackname$nameext-Step1.zip" -1 -r META-INF *
+        zip -r $repackname$nameext-Step1.zip META-INF *
         mv $(find ../ -name "*.zip") /sdcard/Repacks/
     else
         echo -e "\e[1m\e[37mPacking rom files...\e[0m"
         echo
         cd $OUT
-        zip "$repackname$nameext.zip" -1 -r META-INF *
+        zip -r $repackname$nameext.zip META-INF *
         mv $(find . -name *.zip) /sdcard/Repacks/
     fi
     echo -e "\e[1;32mYour repacked rom is ready to flash. You can find it in /sdcard/Repacks/ \e[0m"
