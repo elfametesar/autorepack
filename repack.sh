@@ -410,7 +410,7 @@ get_image_size(){
 vendor_patch(){
     tune2fs -f -O ^read-only extracted/vendor.img &> /dev/null
     echo -e "\e[1m\e[37m Mounting vendor.img... \e[0m"
-    sh rw.sh extracted/vendor.img #&> /dev/null    
+    sh rw.sh extracted/vendor.img &> /dev/null    
     mount extracted/vendor.img tmp/
     echo -e "\e[1;32m Vendor image has temporarily been mounted.\e[0m"
     sh dfe.sh tmp/
