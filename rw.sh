@@ -1,76 +1,157 @@
-#dd if=/dev/zero bs=1M count=128 >> system.img
-#e2fsck -f system.img
-#resize2fs system.img
-#blockdev --setrw system.img
-#e2fsck -E unshare_blocks -y -f system.img
-#resize2fs -f -M system.img
-#e2fsck -y -E unshare_blocks system.img
-#blockdev --setrw system.img
+#!/bin/sh
 
-getCurrentSize(){
-    currentSize=$($toy stat -c "%s" $1)
-    currentSize=$(wc -c < $1)
-    currentSizeMB=$(echo $currentSize | awk '{print int($1 / 1024 / 1024)}')
-    currentSizeBlocks=$(echo $currentSize | awk '{print int($1 / 512)}')
-    if [ -z "$2" ]; then
-        printf "$app: Current size of $fiName in bytes: $currentSize\n"
-        printf "$app: Current size of $fiName in MB: $currentSizeMB\n"
-        printf "$app: Current size of $fiName in 512-byte sectors: $currentSizeBlocks\n\n"
-    fi
+successbar(){
+    (
+    while [[ ! ${current%\.*} -eq 100 ]];
+     do
+     curfile=$(ls -1 $extractTo | tail -1)
+     chunk=$(du -sb $extractTo | awk '{print $1}')
+     current=$(bc -l <<< $chunk/$fullsize*100)
+     echo ${current%\.*}
+     echo "XXX"
+     echo "‎"
+     echo "Downloading: $curfile"
+     echo "XXX"
+     done
+     ) |
+     dialog --stdout --title "$type" --gauge "" 6 70 0
 }
 
-shrink2Min(){
-    printf "$app: Shrinking size of $fiName back to minimum size...\n"
-    if ( ! resize2fs -f -M $1 ); then
-        printf "$app: There was a problem shrinking $fiName. Please try again.\n\n"
-        exit 1
-    fi
+path_adjustment(){
+    ld=$LD_LIBRARY_PATH
+    pt=$PATH
+    PATH=$PWD/bin:$PATH
 }
 
-increaseSize(){
-    printf "$app: Increasing filesystem size of $fiName...\n"
-    if ( ! resize2fs -f $1 $2"s" ); then
-        printf "$app: There was a problem resizing $fiName. Please try again.\n\n"
-        exit 1
-    fi
-}
-
-addCustomSize(){
-    getCurrentSize $1 1
-    customSize=$(echo $currentSize $sizeValue | awk '{print $1 + ($2 * 1024 * 1024)}')
-    customSizeMB=$(echo $customSize | awk '{print int($1 / 1024 / 1024)}')
-    customSizeBlocks=$(echo $customSize | awk '{print int($1 / 512)}')
-    printf "$app: Custom size of $fiName in bytes: $customSize\n"
-    printf "$app: Custom size of $fiName in MB: $customSizeMB\n"
-    printf "$app: Custom size of $fiName in 512-byte sectors: $customSizeBlocks\n\n"
-    increaseSize $1 $customSizeBlocks
-}
-
-unshareBlocks(){
-    printf "$app: 'shared_blocks feature' detected @ %s\n\n" $fiName
-    newSizeBlocks=$(echo $currentSize | awk '{print ($1 * 1.25) / 512}')
-    increaseSize $1 $newSizeBlocks
-    printf "$app: Removing 'shared_blocks feature' of %s...\n" $fiName
-    if ( ! e2fsck -y -E unshare_blocks $1 > /dev/null ); then
-        printf "$app: There was a problem removing the read-only lock of %s. Ignoring\n\n" $fiName
+retrieve_list(){
+    unset list
+    if [ ! -z "$(ls twrp/)" ]; 
+    then
+        i=1
+        find twrp -type f -size -15M -delete &> /dev/null
+        find twrp -type f ! -iname "*.tar.xz" -delete &> /dev/null
+        for tar in $(ls twrp/ | tr -d '[:blank:]' | xargs -n 1 | xargs -I {} basename {} '.tar.xz'); do
+            tar=$(echo $tar |awk '{for (i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)} 1')
+            list+=$i" $tar "
+            let "i++"
+        done
     else
-        printf "$app: Read-only lock of %s successfully removed\n\n" $fiName
+        return
     fi
-    shrink2Min $1
+    }
+
+add(){
+    chmod +x aik/*  &> /dev/null
+    aik/cleanup.sh &> /dev/null
+    if [ -z "$rename" ]; then
+        name=$(basename $(basename $input /) .img).tar.xz
+    else
+        name="$rename"
+    fi
+    echo -e "\e[0m\e[37mUnpacking recovery image\e[0m" >&2
+    aik/unpackimg.sh "$input" &> /dev/null
+    cd aik
+    echo -e "\e[0m\e[37mCreating recovery package\e[0m" >&2
+    tar -cf - ramdisk/ | xz -9 -c - > "$name"
+    cd ../
+    [ $(du -sm aik/$name | awk '{ print $1 }') -lt 15 ] && echo -e "\e[0m\e[1;31mErrors occured, aborting\e[0m" >&2 && aik/cleanup.sh &> /dev/null && sleep 2 && return 1
+    mv "aik/$name" twrp/ 
+    echo -e "\e[0m\e[37mCleaning up the workspace\e[0m" >&2
+    aik/cleanup.sh &> /dev/null
+    return
+    }
+
+find_file(){
+    iteration=0
+    ls twrp/|while read rec;
+    do
+        let "iteration++"
+        [ -z "$(ls twrp/)" ] && return 
+        if [ "$sel" == "$iteration" ]; then
+            echo "$rec"
+        fi
+    done
 }
 
-makeRW(){
-    fiName=${1//*\/}
-    getCurrentSize $1
-    features=`tune2fs -l $1 2>/dev/null | grep "feat"`
-    if [ ! -z "${features:20}" ]; then
-        if [[ "${features:20}" == *"shared_blocks"* ]]; then unshareBlocks $1; else printf "$app: NO 'shared_blocks feature' detected @ %s\n\n" $fiName; fi
-        shrink2Min $1
-        if [[ "$sizeValue" > 0 ]]; then
-            addCustomSize $1
-        fi
+remove(){
+    retrieve_list; [ -z "$list" ] && return
+    sel=$(dialog --stdout --no-cancel --title "Select Recovery" --menu "Select the recovery you want to remove:" 0 0 0 $list - "Return")
+    if [ "$sel" == "-" ]
+    then
+        return
+    else
+        found=$(find_file)
+        rm twrp/$found
+        remove
     fi
-    printf "=================================================\n\n"
 }
-sizeValue=20
-makeRW $1
+
+select_recovery(){
+    retrieve_list
+    sel=$(dialog --stdout --title "Select Recovery" --menu "Select the recovery you want to add:" 0 0 0 $list - "Download recovery" + "Select from storage" ! "Remove a recovery")
+    case $sel in
+     "-") dl=$(dialog --stdout --title "Select Recovery" --menu "Select the recovery you want to download:" 0 0 0 \
+         1 "Nebrassy" \
+         2 "Vasi" \
+         3 "Nebrassy Old" \
+         4 "Teamwin Fork")
+        [ "$?" == "0" ] && \
+            rename_recovery && \
+            download_recovery && \
+            select_recovery || \
+            select_recovery
+     ;;
+     "+") input=$(dialog --stdout --title "USE SPACE TO SELECT FILES AND FOLDERS" --fselect /sdcard/ -1 -1)
+        [ "$?" == "1" ] && select_recovery 
+        [[ "$input" == *.img ]] && \
+            rename_recovery && \
+            add || \
+            echo -e "\e[0m\e[1;31mWrong file type\e[0m" >&2; \
+            sleep 3; \
+            select_recovery
+     ;;
+     "!") remove; select_recovery
+     ;;
+    esac
+    find_file
+    exit
+    }
+
+rename_recovery(){
+    rename=$(dialog --stdout --inputbox "Do you want to rename the new recovery? Leave it blank for default value:" 10 50)
+    [ "$?" == "1" ] && return 1
+    [ -z "$rename" ] && unset rename || rename="$(echo $rename | tr -d ' ').tar.xz"
+     }
+
+download_recovery(){
+    extractTo=tmp
+    current=0.0
+    rm -rf tmp/* &> /dev/null
+    case $dl in
+    1)
+     fullsize=17096136
+     wget https://github.com/erenmete/uploads/raw/main/nebrassy.tar.xz -O tmp/Nebrassy.tar.xz &> /dev/null &
+     successbar 
+    ;;
+    2)
+     fullsize=17259460
+     wget https://github.com/erenmete/uploads/raw/main/vasi.tar.xz -O tmp/Vasi.tar.xz &> /dev/null &
+     successbar 
+    ;;
+    3)
+     fullsize=17215996
+     wget https://github.com/erenmete/uploads/raw/main/nebrassyold.tar.xz -O tmp/Nebrassy3.5.tar.xz &> /dev/null &
+     successbar 
+    ;;
+    4)
+     fullsize=17121484
+     wget https://github.com/erenmete/uploads/raw/main/teamwin.tar.xz -O tmp/Teamwin.tar.xz &> /dev/null &
+     successbar 
+    ;;
+    esac
+    [ ! -z "$rename" ] && mv tmp/$(ls tmp) twrp/$rename || mv tmp/* twrp/ &> /dev/null
+    retrieve_list
+    }
+
+path_adjustment
+select_recovery
