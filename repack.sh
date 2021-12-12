@@ -585,18 +585,18 @@ final_act(){
         echo -e "\e[1m\e[37mPacking MIUI firmware files...\e[0m"
         echo
         cd output/MIUI/fw
-        zip "$repackname''$nameext-Step2.zip" -1 -r META-INF *
+        zip "$repackname$nameext-Step2.zip" -1 -r META-INF *
         echo
         echo -e "\e[1m\e[37mPacking MIUI rom files...\e[0m"
         echo
         cd ../rom
-        zip "$repackname''$nameext-Step1.zip" -1 -r META-INF *
+        zip "$repackname$nameext-Step1.zip" -1 -r META-INF *
         mv $(find ../ -name "*.zip") /sdcard/Repacks/
     else
         echo -e "\e[1m\e[37mPacking rom files...\e[0m"
         echo
         cd $OUT
-        zip "$repackname''$nameext.zip" -1 -r META-INF *
+        zip "$repackname$nameext.zip" -1 -r META-INF *
         mv $(find . -name *.zip) /sdcard/Repacks/
     fi
     echo -e "\e[1;32mYour repacked rom is ready to flash. You can find it in /sdcard/Repacks/ \e[0m"
