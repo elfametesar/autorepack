@@ -4,7 +4,7 @@ successbar(){
     (
     while [[ ! ${current%\.*} -eq 100 ]];
      do
-     curfile=$(ls -1 $extractTo | tail -1)
+     curfile=$(ls $extractTo | tail -1)
      chunk=$(du -sb $extractTo | awk '{print $1}')
      current=$(bc -l <<< $chunk/$fullsize*100)
      echo ${current%\.*}

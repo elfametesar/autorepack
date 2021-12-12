@@ -86,6 +86,7 @@ fastboot_extract(){
         mv $file extracted/$(basename $file _a.img).img
     done
     rm -rf tmp/*
+    rm -rf extracted/*_b.img
     rm extracted/rescue.img extracted/userdata.img extracted/dummy.img extracted/persist.img extracted/metadata.img extracted/metadata.img &> /dev/null
 }
 
@@ -328,7 +329,6 @@ select_mod(){
       "1")
       magisk_choose_dialog
       while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      sleep 5
       nameext="-Magisk+TWRP+DFE-repack"
       ;;
       "2")
@@ -410,7 +410,7 @@ get_image_size(){
 vendor_patch(){
     tune2fs -f -O ^read-only extracted/vendor.img &> /dev/null
     echo -e "\e[1m\e[37m Mounting vendor.img... \e[0m"
-    sh rw.sh extracted/vendor.img &> /dev/null
+    sh rw.sh extracted/vendor.img &> /dev/null    
     mount extracted/vendor.img tmp/
     echo -e "\e[1;32m Vendor image has temporarily been mounted.\e[0m"
     sh dfe.sh tmp/
@@ -567,8 +567,8 @@ create_zip_structure(){
       echo -e "resize vendor_a $VENDOR" >>$OUT"dynamic_partitions_op_list"
      ;;
     esac
-    if [ -z "$(ls extracted | grep odm.img)" ]; then
-      echo -e "resize vendor_a $VENDOR" >>$OUT"dynamic_partitions_op_list"
+    if [ ! -z "$(ls extracted | grep odm.img)" ]; then
+      echo -e "resize odm_a $ODM" >>$OUT"dynamic_partitions_op_list"
     fi
 }
 
