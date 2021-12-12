@@ -600,7 +600,7 @@ final_act(){
         mv $(find . -name *.zip) /sdcard/Repacks/
     fi
     echo -e "\e[1;32mYour repacked rom is ready to flash. You can find it in /sdcard/Repacks/ \e[0m"
-    rm -rf output extracted/* &> /dev/null
+    sh cleanup.sh &> /dev/null
     exit
 }
 
