@@ -114,6 +114,7 @@ select_recovery(){
      ;;
     esac
     find_file
+    exit
     }
 
 rename_recovery(){
