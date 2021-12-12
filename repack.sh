@@ -25,7 +25,7 @@ successbar(){
     (
     while [[ ! ${current%\.*} -eq 100 ]];
      do
-     curfile=$(ls -tA $extractTo | head -1)
+     curfile=$(ls $extractTo | tail -1)
      chunk=$(du -sb $extractTo | awk '{print $1}')
      current=$(bc -l <<< $chunk/$fullsize*100)
      echo ${current%\.*}
@@ -390,7 +390,7 @@ recovery_patch(){
     cp extracted/boot.img aik/
     aik/unpackimg.sh boot.img &> /dev/null
     rm -rf aik/ramdisk/*
-    tar xf twrp/$twrp -C aik/
+    tar xf twrp/"$twrp" -C aik/
     aik/repackimg.sh --origsize &> /dev/null
     mv aik/image-new.img $OUTFW""boot/boot.img
     aik/cleanup.sh &> /dev/null
