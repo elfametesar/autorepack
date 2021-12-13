@@ -48,6 +48,17 @@ payload_extract(){
     paydump $file $extractTo &> /dev/null &
     successbar
     rm tmp/*
+    unzip -l $fw | grep -q .img;
+    if [ $? == 0 ]; then
+        extractTo="tmp/"
+        fullsize=$(7za l $fw *.img -r | tail -n 1 | xargs | cut -d' ' -f3)
+        type="Firmware Extraction"
+        current=0.0
+        7za e -o$extractTo $fw *.img -r -y &> /dev/null &
+        successbar
+        wait
+    fi
+    mv tmp/* extracted/
 }
 
 fastboot_extract(){
@@ -88,6 +99,17 @@ fastboot_extract(){
     rm -rf tmp/*
     rm -rf extracted/*_b.img
     rm extracted/rescue.img extracted/userdata.img extracted/dummy.img extracted/persist.img extracted/metadata.img extracted/metadata.img &> /dev/null
+    unzip -l $fw | grep -q .img;
+    if [ $? == 0 ]; then
+        extractTo="tmp/"
+        fullsize=$(7za l $fw *.img -r | tail -n 1 | xargs | cut -d' ' -f3)
+        type="Firmware Extraction"
+        current=0.0
+        7za e -o$extractTo $fw *.img -r -y &> /dev/null &
+        successbar
+        wait
+    fi
+    mv tmp/* extracted/
 }
 
 file_renamer(){
@@ -97,7 +119,7 @@ file_renamer(){
 }
 
 compression_level(){
-    dialog --yesno "Do you want to compress the repack? This will reduce the size but will take longer." 7 50
+    dialog --yesno "Do you want to compress the repack? This will reduce the size but will take longer." 6 50
     if [ "$?" == 0 ]; then
         comp_level=$(dialog --stdout --radiolist "Select compression level:" 17 23 7 $(seq 9 | $PREFIX/bin/xargs -I {} echo {} ‎ 0))
     fi
@@ -107,6 +129,7 @@ filepicker(){
     file=$(dialog --stdout --title "USE SPACE TO SELECT FILES AND FOLDERS" --fselect /sdcard/ -1 -1)
     if [[ "$file" == *.tgz ]]; then
         repackname="$(basename $file .tgz)"
+        include_fw
         rom_dialog
         select_mod
         fastboot_extract
@@ -114,6 +137,7 @@ filepicker(){
         unzip -l $file | grep -q payload.bin;
         if [ "$?" == "0" ]; then
             repackname="$(basename $file .zip)"
+            include_fw
             rom_dialog
             select_mod
             extractTo="tmp/"
@@ -128,6 +152,7 @@ filepicker(){
             7za l $file super.img -r | grep -q "$super.img$"
             if [ "$?" == "0" ]; then
                 repackname="$(basename $file .zip)"
+                include_fw
                 rom_dialog
                 select_mod
                 fastboot_extract
@@ -140,6 +165,7 @@ filepicker(){
         7za l $file super.img -r | grep -q $super.img$
         if [ "$?" == "0" ]; then
             repackname="$(basename $file .7z)"
+            include_fw
             payload=$file
             rom_dialog
             select_mod
@@ -150,6 +176,7 @@ filepicker(){
         fi
     elif [[ "$file" == *.bin ]]; then
         payload=$file
+        include_fw
         rom_dialog
         select_mod
         payload_extract
@@ -158,6 +185,18 @@ filepicker(){
         sleep 1
     fi
     start_repack
+}
+
+include_fw(){
+    dialog --colors --yesno "Do you want to add your repack custom firmware?" 6 43
+    if [ $? == 0 ]; then
+        fw=$(dialog --stdout --title "USE SPACE TO SELECT FILES AND FOLDERS" --fselect /sdcard/ -1 -1)
+        if [[ ! "$fw" == *.zip ]]; then
+            echo -e "\e[1;31mYou did not choose a valid file.\e[0m"
+            sleep 1
+            include_fw
+        fi
+    fi
 }
 
 start_repack(){
