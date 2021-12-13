@@ -1,5 +1,7 @@
 #!/bin/sh
 
+PATH=$PWD/bin:$PATH
+
 successbar(){
     (
     while [[ ! ${current%\.*} -eq 100 ]];
@@ -15,12 +17,6 @@ successbar(){
      done
      ) |
      dialog --stdout --title "$type" --gauge "" 6 70 0
-}
-
-path_adjustment(){
-    ld=$LD_LIBRARY_PATH
-    pt=$PATH
-    PATH=$PWD/bin:$PATH
 }
 
 retrieve_list(){
