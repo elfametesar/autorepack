@@ -48,17 +48,19 @@ payload_extract(){
     paydump $file $extractTo &> /dev/null &
     successbar
     rm tmp/*
-    unzip -l $fw | grep -q .img;
-    if [ $? == 0 ]; then
-        extractTo="tmp/"
-        fullsize=$(7za l $fw *.img -r | tail -n 1 | xargs | cut -d' ' -f3)
-        type="Firmware Extraction"
-        current=0.0
-        7za e -o$extractTo $fw *.img -r -y &> /dev/null &
-        successbar
-        wait
+    if [ ! -z "$fw" ]; then
+        unzip -l $fw | grep -q .img;
+        if [ $? == 0 ]; then
+            extractTo="tmp/"
+            fullsize=$(7za l $fw *.img -r | tail -n 1 | xargs | cut -d' ' -f3)
+            type="Firmware Extraction"
+            current=0.0
+            7za e -o$extractTo $fw *.img -r -y &> /dev/null &
+            successbar
+            wait
+        fi
+        mv tmp/* extracted/
     fi
-    mv tmp/* extracted/
 }
 
 fastboot_extract(){
@@ -99,17 +101,19 @@ fastboot_extract(){
     rm -rf tmp/*
     rm -rf extracted/*_b.img
     rm extracted/rescue.img extracted/userdata.img extracted/dummy.img extracted/persist.img extracted/metadata.img extracted/metadata.img &> /dev/null
-    unzip -l $fw | grep -q .img;
-    if [ $? == 0 ]; then
-        extractTo="tmp/"
-        fullsize=$(7za l $fw *.img -r | tail -n 1 | xargs | cut -d' ' -f3)
-        type="Firmware Extraction"
-        current=0.0
-        7za e -o$extractTo $fw *.img -r -y &> /dev/null &
-        successbar
-        wait
+    if [ ! -z "$fw" ]; then
+        unzip -l $fw | grep -q .img;
+        if [ $? == 0 ]; then
+            extractTo="tmp/"
+            fullsize=$(7za l $fw *.img -r | tail -n 1 | xargs | cut -d' ' -f3)
+            type="Firmware Extraction"
+            current=0.0
+            7za e -o$extractTo $fw *.img -r -y &> /dev/null &
+            successbar
+            wait
+        fi
+        mv tmp/* extracted/
     fi
-    mv tmp/* extracted/
 }
 
 file_renamer(){
@@ -449,11 +453,21 @@ get_image_size(){
 vendor_patch(){
     tune2fs -f -O ^read-only extracted/vendor.img &> /dev/null
     echo -e "\e[1m\e[37m Mounting vendor.img... \e[0m"
-    sh rw.sh extracted/vendor.img &> /dev/null    
-    mount extracted/vendor.img tmp/
-    echo -e "\e[1;32m Vendor image has temporarily been mounted.\e[0m"
-    sh dfe.sh tmp/
-    umount tmp
+    count=0
+    while [ $count -le 5 ]; do
+        let "count++"
+        mount extracted/vendor.img tmp/ &> /dev/null
+        mountpoint -q tmp/
+        [ "$?" == "0" ] && break
+    done
+    mountpoint -q tmp/
+    if [ "$?" == "0" ]; then
+        echo -e "\e[1;32m Vendor image has temporarily been mounted.\e[0m"
+        sh dfe.sh tmp/
+        umount tmp
+    else
+        echo -e "\e[1;31m Vendor image could not be mounted. Continuing without DFE patch.\e[0m"
+    fi
     if [ $rw == 0 ]; then
         tune2fs -f -O read-only extracted/vendor.img &> /dev/null
     fi
@@ -465,9 +479,12 @@ make_rw(){
     echo -e "\e[1m\e[37mGiving read and write permissions...\e[0m"
     for img in extracted/*img; do
         case "$(basename $img /)" in
-         (system.img|system_ext.img|product.img|odm.img)
-          sh rw.sh $img &> /dev/null
-          e2fsck -fy $img &> /dev/null
+         (system.img|system_ext.img|vendor.img|product.img|odm.img)
+          tune2fs -l $img | grep -q 'shared_blocks'
+          [ "$?" == 1 ] && continue
+          new_size=$(du -sb $img | awk '{ print $1/4096+48829 }')
+          resize2fs $img $new_size &> /dev/null
+          e2fsck -y -E unshare_blocks $img &> /dev/null
          esac
     done
 }
