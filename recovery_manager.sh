@@ -126,22 +126,22 @@ download_recovery(){
     case $dl in
     1)
      fullsize=17096136
-     wget https://github.com/erenmete/uploads/raw/main/nebrassy.tar.xz -O tmp/Nebrassy.tar.xz &> /dev/null &
+     curl -L -s https://github.com/erenmete/uploads/raw/main/nebrassy.tar.xz -o tmp/Nebrassy.tar.xz &> /dev/null &
      successbar 
     ;;
     2)
      fullsize=17259460
-     wget https://github.com/erenmete/uploads/raw/main/vasi.tar.xz -O tmp/Vasi.tar.xz &> /dev/null &
+     curl -L -s https://github.com/erenmete/uploads/raw/main/vasi.tar.xz -o tmp/Vasi.tar.xz &> /dev/null &
      successbar 
     ;;
     3)
      fullsize=17215996
-     wget https://github.com/erenmete/uploads/raw/main/nebrassyold.tar.xz -O tmp/Nebrassy3.5.tar.xz &> /dev/null &
+     curl -L -s https://github.com/erenmete/uploads/raw/main/nebrassyold.tar.xz -o tmp/Nebrassy3.5.tar.xz &> /dev/null &
      successbar 
     ;;
     4)
      fullsize=17121484
-     wget https://github.com/erenmete/uploads/raw/main/teamwin.tar.xz -O tmp/Teamwin.tar.xz &> /dev/null &
+     curl -L -s https://github.com/erenmete/uploads/raw/main/teamwin.tar.xz -o tmp/Teamwin.tar.xz &> /dev/null &
      successbar 
     ;;
     esac
