@@ -466,7 +466,8 @@ vendor_patch(){
     mountpoint -q tmp/
     if [ "$?" == "0" ]; then
         echo -e "\e[1;32m Vendor image has temporarily been mounted.\e[0m"
-        sh dfe.sh tmp/
+        sh dfe.sh tmp/ &> /dev/null
+        sh dfe.sh tmp/ 
         umount tmp
     else
         echo -e "\e[1;31m Vendor image could not be mounted. Continuing without DFE patch.\e[0m"
