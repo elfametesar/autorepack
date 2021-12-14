@@ -197,6 +197,7 @@ include_fw(){
     dialog --colors --yesno "Do you want to add your repack custom firmware?" 6 43
     if [ $? == 0 ]; then
         fw=$(dialog --stdout --title "USE SPACE TO SELECT FILES AND FOLDERS" --fselect /sdcard/ -1 -1)
+        [ "$?" == 1 ] && return
         if [[ ! "$fw" == *.zip ]]; then
             echo -e "\e[1;31mYou did not choose a valid file.\e[0m"
             sleep 1
