@@ -3,6 +3,8 @@
 export PATH=$PWD/bin:$PATH
 mkdir -p /sdcard/Repacks
 
+trap "jobs -p | xargs kill &> /dev/null" EXIT
+
 integrity_check(){
     headcount=0
     if [ ! -e extracted/*.img &> /dev/null ]; then return; fi
@@ -25,7 +27,7 @@ successbar(){
     (
     while [[ ! ${current%\.*} -eq 100 ]];
      do
-     curfile=$(ls $extractTo | tail -1)
+     curfile=$(ls -tc $extractTo | head -n 1)
      chunk=$(du -sb $extractTo | awk '{print $1}')
      current=$(bc -l <<< $chunk/$fullsize*100)
      echo ${current%\.*}
