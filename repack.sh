@@ -660,7 +660,8 @@ final_act(){
     exit
 }
 
-rm -rf tmp/* output
+rm -rf tmp/*
+rm -rf output
 integrity_check
 file_renamer
 source_check
