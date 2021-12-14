@@ -149,5 +149,4 @@ download_recovery(){
     retrieve_list
     }
 
-path_adjustment
 select_recovery
