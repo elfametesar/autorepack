@@ -125,7 +125,8 @@ file_renamer(){
 compression_level(){
     dialog --yesno "Do you want to compress the repack? This will reduce the size but will take longer." 6 50
     if [ "$?" == 0 ]; then
-        comp_level=$(dialog --stdout --radiolist "Select compression level:" 17 23 7 $(seq 9 | $PREFIX/bin/xargs -I {} echo {} ‎ 0))
+        levels=(1 "Fastest" 2 "Fast" 3 "Normal" 4 "Sluggish" 5 "Hard" 6 "Harder" 7 "Extreme" 8 "Maximum")
+        comp_level=$(dialog --stdout --menu "Select compression level:" 17 23 7 ${levels[@]} )
     fi
 }
 
