@@ -72,8 +72,8 @@ fastboot_extract(){
     current=0.0
     if [[ "$file" == *.tgz ]]; then
         echo "\e[37mRetrieving information from archive...\e[0m"
-        fullsize=$(7za e -so $file -mmt8 | ./7za l -si -ttar *.img -r -mmt8 | awk 'END{ print $4 }')
-        7za e -so $file -mmt8 | 7za l -si -ttar *.img -r -mmt8 -o$extractTo &
+        fullsize=$(7za e -so $file -mmt8 | 7za l -si -ttar *.img -r -mmt8 | awk 'END{ print $4 }')
+        7za e -so $file -mmt8 | 7za e -si -ttar *.img -r -mmt8 -o$extractTo &> /dev/null &
         successbar &
         wait
     else
