@@ -55,7 +55,7 @@ payload_extract(){
         unzip -l $fw | grep -q .img;
         if [ $? == 0 ]; then
             extractTo="tmp/"
-            fullsize=$(7za l $fw *.img -r | awk 'END{ print $4 }')
+            fullsize=$(7za l $fw *.img -r | awk 'END{ print $3 }')
             type="Firmware Extraction"
             current=0.0
             7za e -o$extractTo $fw *.img -r -y &> /dev/null &
@@ -105,7 +105,7 @@ fastboot_extract(){
         unzip -l $fw | grep -q .img;
         if [ $? == 0 ]; then
             extractTo="tmp/"
-            fullsize=$(7za l $fw *.img -r | awk 'END{ print $4 }')
+            fullsize=$(7za l $fw *.img -r | awk 'END{ print $3 }')
             type="Firmware Extraction"
             current=0.0
             7za e -o$extractTo $fw *.img -r -y &> /dev/null &
