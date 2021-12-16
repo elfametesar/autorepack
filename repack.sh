@@ -212,7 +212,6 @@ start_repack(){
       get_image_size
       img_to_sparse
       magisk_recovery_patch
-      create_zip_structure
       final_act
       ;;
       "2")
@@ -221,7 +220,6 @@ start_repack(){
       get_image_size
       img_to_sparse
       magisk_patch
-      create_zip_structure
       final_act
       ;;
       "3")
@@ -229,7 +227,6 @@ start_repack(){
       get_image_size
       img_to_sparse
       magisk_recovery_patch
-      create_zip_structure
       final_act
       ;;
       "4")
@@ -238,7 +235,6 @@ start_repack(){
       get_image_size
       img_to_sparse
       recovery_patch
-      create_zip_structure
       final_act
       ;;
       "5")
@@ -246,7 +242,6 @@ start_repack(){
       get_image_size
       img_to_sparse
       recovery_patch
-      create_zip_structure
       final_act
       ;;
       "6")
@@ -254,7 +249,6 @@ start_repack(){
       vendor_patch
       get_image_size
       img_to_sparse
-      create_zip_structure
       final_act
       ;;
       "7")
@@ -262,7 +256,6 @@ start_repack(){
       get_image_size
       img_to_sparse
       magisk_patch
-      create_zip_structure
       final_act
       ;;
       "8")
@@ -270,7 +263,6 @@ start_repack(){
       get_image_size
       ln -n extracted/boot.img $OUTFW""boot/boot.img
       img_to_sparse
-      create_zip_structure
       final_act
       ;;
      esac
@@ -597,6 +589,7 @@ create_zip_structure(){
 final_act(){
     echo -e "\e[32m Waiting for image processes to be done\e[0m"
     wait
+    create_zip_structure
     echo
     echo -e "\e[32m -------------------------------------------------------\e[0m"
     echo -e "\e[32m            Creating flashable repack rom.\e[0m"
