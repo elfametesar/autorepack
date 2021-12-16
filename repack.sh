@@ -526,6 +526,7 @@ create_zip_structure(){
     done
     case $ROMTYPE in 
      1)
+        mv output/MIUI/rom/vendor* $OUTFW
         echo -e "\nassert(update_dynamic_partitions(package_extract_file(\"dynamic_partitions_op_list\")));\n" >> $fw_updater_path/updater-script
         echo -e "ui_print(\"Flashing vendor_a partition...\");" >> $fw_updater_path/updater-script
         echo -e "block_image_update(map_partition(\"vendor_a\"), package_extract_file(\"vendor.transfer.list\"), \"vendor.new.dat.br\", \"vendor.patch.dat\") ||" \
@@ -588,6 +589,7 @@ create_zip_structure(){
 }
 
 final_act(){
+    echo
     echo -e "\e[32m Waiting for image processes to be done\e[0m"
     wait
     create_zip_structure
@@ -598,7 +600,6 @@ final_act(){
     echo
     [ ! -z "$repackrename" ] && repackname=$repackrename
     if [ $ROMTYPE == "1" ]; then
-        mv output/MIUI/rom/vendor* $OUTFW
         echo
         echo -e "\e[1m\e[37mPacking MIUI firmware files...\e[0m"
         echo
