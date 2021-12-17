@@ -506,7 +506,7 @@ img_to_sparse(){
 
 create_zip_structure(){
     [ -z "$repackname" ] && repackname="UnnamedRom"
-    [ ! -z "$repackrename ] && repackname=$repackrename
+    [ ! -z "$repackrename" ] && repackname=$repackrename
     echo -e "ui_print(\"*****************************\");\n" \
                  "ui_print(\" - $repackname by AutoRepack\");\n" \
                  "ui_print(\"*****************************\");\n\n" \
