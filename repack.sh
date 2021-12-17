@@ -422,7 +422,7 @@ recovery_patch(){
 }
 
 get_image_size(){
-    VENDOR=$(expr $(stat -c%s extracted/vendor.img | cut -f1) + 300000000)
+    VENDOR="$(stat -c%s extracted/vendor.img | cut -f1)"
     SYSTEM="$(stat -c%s extracted/system.img | cut -f1)"
     SYSTEMEXT="$(stat -c%s extracted/system_ext.img | cut -f1)"
     PRODUCT="$(stat -c%s extracted/product.img | cut -f1)"
