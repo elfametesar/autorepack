@@ -1,7 +1,7 @@
 #!/bin/sh
 
 export PATH=$PWD/bin:$PATH
-mkdir -p /data/media/0/Repacks
+mkdir -p /sdcard/Repacks
 projectdir=$PWD
 
 trap "jobs -p | xargs kill &> /dev/null" EXIT
@@ -131,7 +131,7 @@ compression_level(){
 }
 
 filepicker(){
-    file=$(dialog --stdout --title "USE SPACE TO SELECT FILES AND FOLDERS" --fselect /data/media/0/ -1 -1)
+    file=$(dialog --stdout --title "USE SPACE TO SELECT FILES AND FOLDERS" --fselect /sdcard/ -1 -1)
     if [[ "$file" == *.tgz ]]; then
         repackname="$(basename $file .tgz)"
         include_fw
@@ -195,7 +195,7 @@ filepicker(){
 include_fw(){
     dialog --colors --yesno "Do you want to add your repack custom firmware?" 6 43
     if [ $? == 0 ]; then
-        fw=$(dialog --stdout --title "USE SPACE TO SELECT FILES AND FOLDERS" --fselect /data/media/0/ -1 -1)
+        fw=$(dialog --stdout --title "USE SPACE TO SELECT FILES AND FOLDERS" --fselect /sdcard/ -1 -1)
         [ "$?" == 1 ] && return
         if [[ ! "$fw" == *.zip ]]; then
             echo -e "\e[1;31mYou did not choose a valid file.\e[0m"
@@ -317,7 +317,7 @@ magisk_choose_dialog(){
       ;;
     esac
 
-    magisk=$(dialog --stdout --title "USE SPACE TO SELECT MAGISK.ZIP" --fselect /data/media/0/ -1 -1)
+    magisk=$(dialog --stdout --title "USE SPACE TO SELECT MAGISK.ZIP" --fselect /sdcard/ -1 -1)
     [ "$?" == 1 ] && magisk_choose_dialog
     unzip -l $magisk | grep -q libmagiskboot.so &> /dev/null
     if [ "$?" == "0" ]; then
@@ -608,19 +608,19 @@ final_act(){
         echo -e "\e[1m\e[37mPacking MIUI firmware files...\e[0m"
         echo
         cd output/MIUI/fw
-        7za a -r -mx1 -sdel -mmt8 /data/media/0/Repacks/$repackname$nameext-Step2.zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$repackname$nameext-Step2.zip * -bso0
         echo
         echo -e "\e[1m\e[37mPacking MIUI rom files...\e[0m"
         echo
         cd ../rom
-        7za a -r -mx1 -sdel -mmt8 /data/media/0/Repacks/$repackname$nameext-Step1.zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$repackname$nameext-Step1.zip * -bso0
     else
         echo -e "\e[1m\e[37mPacking rom files...\e[0m"
         echo
         cd $OUT
-        7za a -r -mx1 -sdel -mmt8 /data/media/0/Repacks/$repackname$nameext.zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$repackname$nameext.zip * -bso0
     fi
-    chown root:everybody /data/media/0/Repacks/*
+    chown root:everybody /sdcard/Repacks/*
     cd $projectdir
     sh cleanup.sh &> /dev/null
     echo -e "\e[1;32mYour repacked rom is ready to flash. You can find it in /sdcard/Repacks/ \e[0m"
