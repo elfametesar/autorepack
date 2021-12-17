@@ -506,8 +506,9 @@ img_to_sparse(){
 
 create_zip_structure(){
     [ -z "$repackname" ] && repackname="UnnamedRom"
+    [ ! -z "$repackrename ] && repackname=$repackrename
     echo -e "ui_print(\"*****************************\");\n" \
-                 "ui_print(\" - $rename by AutoRepack\");\n" \
+                 "ui_print(\" - $repackname by AutoRepack\");\n" \
                  "ui_print(\"*****************************\");\n\n" \
                  "run_program(\"/sbin/busybox\", \"umount\", \"/system_root\");\n" \
                  "run_program(\"/sbin/busybox\", \"umount\", \"/product\");\n" \
@@ -535,7 +536,7 @@ create_zip_structure(){
                  "run_program(\"/system/bin/bootctl\", \"set-active-boot-slot\", \"0\");\n" \
                  "set_progress(1.000000);" | sed 's/^ *//g' >> $fw_updater_path/updater-script
         echo -e "ui_print(\"*****************************\");\n" \
-                 "ui_print(\" - $rename by AutoRepack\");\n" \
+                 "ui_print(\" - $repackname by AutoRepack\");\n" \
                  "ui_print(\"*****************************\");\n\n" \
                  "run_program(\"/sbin/busybox\", \"umount\", \"/system_root\");\n" \
                  "run_program(\"/sbin/busybox\", \"umount\", \"/product\");\n" \
@@ -602,7 +603,6 @@ final_act(){
     echo -e "\e[32m            Creating flashable repack rom.\e[0m"
     echo -e "\e[32m -------------------------------------------------------\e[0m"
     echo
-    [ ! -z "$repackrename" ] && repackname=$repackrename
     if [ $ROMTYPE == "1" ]; then
         echo
         echo -e "\e[1m\e[37mPacking MIUI firmware files...\e[0m"
