@@ -577,7 +577,11 @@ create_zip_structure(){
           "resize product_a $PRODUCT" | sed 's/^ *//g' >>$OUT"dynamic_partitions_op_list"
     case $ROMTYPE in
      1)
-      echo -e "resize vendor_a $VENDOR" >>$OUTFW"dynamic_partitions_op_list"
+      echo -e "remove vendor_a\n" \
+              "remove vendor_b\n" \
+              "add vendor_a qti_dynamic_partitions_a\n" \
+              "add vendor_b qti_dynamic_partitions_b\n" \
+              "resize vendor_a $VENDOR" | sed 's/^ *//g' >>$OUTFW"dynamic_partitions_op_list"
      ;;
      2)
       echo -e "resize vendor_a $VENDOR" >>$OUT"dynamic_partitions_op_list"
