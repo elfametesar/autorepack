@@ -11,7 +11,7 @@ trap "jobs -p | xargs kill &> /dev/null" EXIT
 
 integrity_check(){
     headcount=0
-    if [ ! -e extracted/*.img &> /dev/null ]; then return; fi
+    if [ ! -e extracted/*.img &> /dev/null ]; then sh cleanup.sh; return; fi
     for check in $(ls extracted/*.img | xargs -n1 basename)
     do
         case "$check" in (system.img|product.img|system_ext.img|boot.img|vendor_boot.img|dtbo.img)
@@ -23,7 +23,7 @@ integrity_check(){
         sh cleanup.sh &> /dev/null
     else
         dialog --yesno "You already have some extracted img files in workspace. Do you want to continue with them?" 6 50
-        if [ "$?" == "0" ]; then ui_menu; rom_dialog; select_mod; start_repack; else sh cleanup.sh; ui_menu; fi
+        if [ "$?" == "0" ]; then ui_menu; rom_dialog; select_mod; start_repack; else sh cleanup.sh; return; fi
     fi
 }
 
