@@ -23,7 +23,7 @@ integrity_check(){
         sh cleanup.sh &> /dev/null
     else
         dialog --yesno "You already have some extracted img files in workspace. Do you want to continue with them?" 6 50
-        if [ "$?" == "0" ]; then ui_menu; rom_dialog; select_mod; start_repack; else sh cleanup.sh; return; fi
+        if [ "$?" == "0" ]; then ui_menu; rom_dialog; select_mod; start_repack; else sh cleanup.sh; ui_menu; fi
     fi
 }
 
