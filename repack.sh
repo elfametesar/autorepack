@@ -1,8 +1,11 @@
 #!/bin/sh
 
 export PATH=$PWD/bin:$PATH
+export LC_ALL=C
+export TERM=linux
+export TERMINFO=$PREFIX/share/terminfo/
 mkdir -p /sdcard/Repacks
-projectdir=$PWD
+HOME=$PWD
 
 trap "jobs -p | xargs kill &> /dev/null" EXIT
 
@@ -20,8 +23,23 @@ integrity_check(){
         sh cleanup.sh &> /dev/null
     else
         dialog --yesno "You already have some extracted img files in workspace. Do you want to continue with them?" 6 50
-        if [ "$?" == "0" ]; then file_renamer; rom_dialog; select_mod; start_repack; else sh cleanup.sh; return; fi
+        if [ "$?" == "0" ]; then ui_menu; rom_dialog; select_mod; start_repack; else sh cleanup.sh; return; fi
     fi
+}
+
+ui_menu(){
+    [ ! -f ".conf" ] && menu
+    [ ! -f ".conf" ] && exit
+    opts=$(tr -d "[]" < .conf | sed 's/None//')
+    file=$(sed -n 1p <<< $opts)
+    name=$(sed -n 2p <<< $opts)
+    ROMTYPE=$(sed -n 3p <<< $opts)
+    fw=$(sed -n 4p <<< $opts)
+    rw=$(sed -n 5p <<< $opts)
+    comp_level=$(sed -n 6p <<< $opts)
+    mm=$(sed -n 7p <<< $opts)
+    [ $mm -eq 1 ] && magisk=$(sed -n 8p <<< $opts) 
+    addons=$(sed -n 9p <<< $opts)
 }
 
 successbar(){
@@ -39,7 +57,7 @@ successbar(){
      sleep 1
      done
      ) |
-     dialog  --title "$type" --gauge "" 6 70 0
+     dialog  --title "$type" --gauge "" 7 70 0
 }
 
 payload_extract(){
@@ -116,33 +134,15 @@ fastboot_extract(){
     fi
 }
 
-file_renamer(){
-    repackrename="$(dialog --stdout --inputbox "Do you want to rename your repack ROM? Leave it blank for default value:" 10 50)"
-    dialog --colors --yesno "Do you want to give your repack read and write permissions? If given, ROM will \Z1not boot\Z0 without magisk." 7 50
-    if [ $? == 0 ]; then rw=1; else rw=0; fi
-}
-
-compression_level(){
-    dialog --yesno "Do you want to compress the repack? This will reduce the size but will take longer." 6 50
-    if [ "$?" == 0 ]; then
-        levels=(1 "Fastest" 2 "Fast" 3 "Normal" 4 "Sluggish" 5 "Hard" 6 "Harder" 7 "Extreme" 8 "Maximum")
-        comp_level=$(dialog --stdout --menu "Select compression level:" 17 23 7 ${levels[@]} )
-    fi
-}
 
 filepicker(){
-    file=$(dialog --stdout --title "USE SPACE TO SELECT FILES AND FOLDERS" --fselect /sdcard/ -1 -1)
     if [[ "$file" == *.tgz ]]; then
-        repackname="$(basename $file .tgz)"
-        include_fw
         rom_dialog
         select_mod
         fastboot_extract
     elif [[ "$file" == *.zip ]]; then
         unzip -l $file | grep -q payload.bin;
         if [ "$?" == "0" ]; then
-            repackname="$(basename $file .zip)"
-            include_fw
             rom_dialog
             select_mod
             extractTo="tmp/"
@@ -156,8 +156,6 @@ filepicker(){
         else
             7za l $file super.img -r | grep -q "$super.img$"
             if [ "$?" == "0" ]; then
-                repackname="$(basename $file .zip)"
-                include_fw
                 rom_dialog
                 select_mod
                 fastboot_extract
@@ -169,8 +167,6 @@ filepicker(){
     elif [[ "$file" == *.7z ]]; then
         7za l $file super.img -r | grep -q $super.img$
         if [ "$?" == "0" ]; then
-            repackname="$(basename $file .7z)"
-            include_fw
             payload=$file
             rom_dialog
             select_mod
@@ -181,7 +177,6 @@ filepicker(){
         fi
     elif [[ "$file" == *.bin ]]; then
         payload=$file
-        include_fw
         rom_dialog
         select_mod
         payload_extract
@@ -192,74 +187,62 @@ filepicker(){
     start_repack
 }
 
-include_fw(){
-    dialog --colors --yesno "Do you want to add your repack custom firmware?" 6 43
-    if [ $? == 0 ]; then
-        fw=$(dialog --stdout --title "USE SPACE TO SELECT FILES AND FOLDERS" --fselect /sdcard/ -1 -1)
-        [ "$?" == 1 ] && return
-        if [[ ! "$fw" == *.zip ]]; then
-            echo -e "\e[1;31mYou did not choose a valid file.\e[0m"
-            sleep 1
-            include_fw
-        fi
-    fi
-}
 
 start_repack(){
      case "$mod" in
-      "1")
+      "123")
       make_rw
       vendor_patch
       get_image_size
       img_to_sparse
       magisk_recovery_patch
+      final_act
+      ;;
+      "13")
+      make_rw
+      vendor_patch
+      get_image_size
+      img_to_sparse
+      magisk_patch
+      final_act
+      ;;
+      "12")
+      make_rw
+      get_image_size
+      img_to_sparse
+      magisk_recovery_patch
+      final_act
+      ;;
+      "23")
+      make_rw
+      vendor_patch
+      get_image_size
+      img_to_sparse
+      recovery_patch
       final_act
       ;;
       "2")
       make_rw
-      vendor_patch
       get_image_size
       img_to_sparse
-      magisk_patch
+      recovery_patch
       final_act
       ;;
       "3")
       make_rw
-      get_image_size
-      img_to_sparse
-      magisk_recovery_patch
-      final_act
-      ;;
-      "4")
-      make_rw
-      vendor_patch
-      get_image_size
-      img_to_sparse
-      recovery_patch
-      final_act
-      ;;
-      "5")
-      make_rw
-      get_image_size
-      img_to_sparse
-      recovery_patch
-      final_act
-      ;;
-      "6")
-      make_rw
       vendor_patch
       get_image_size
       img_to_sparse
       final_act
       ;;
-      "7")
+      "1")
       make_rw
       get_image_size
       img_to_sparse
       magisk_patch
       final_act
       ;;
-      "8")
+      "")
       make_rw
       get_image_size
       ln -n extracted/boot.img $OUTFW""boot/boot.img
@@ -281,22 +264,17 @@ source_check(){
 }
 
 rom_dialog(){
-    ROMTYPE=$(dialog --stdout --title 'Select ROM' --menu 'Select the rom type you want to convert:' 0 0 0 \
-    1 'Two-Files Repack' \
-    2 'One-File Repack')
-
     case "$ROMTYPE" in
+     "0")
+    OUT="./output/AOSP/"
+    OUTFW="./output/AOSP/"
+    mkdir -p $OUT
+    ;;
     "1")
     OUT="./output/MIUI/rom/"
     OUTFW="./output/MIUI/fw/"
     mkdir -p $OUT $OUTFW
     comp_level=3
-    ;;
-    "2")
-    OUT="./output/AOSP/"
-    OUTFW="./output/AOSP/"
-    mkdir -p $OUT
-    compression_level
     ;;
     esac
     rom_updater_path="$OUT""META-INF/com/google/android"
@@ -307,79 +285,57 @@ rom_dialog(){
 }
 
 magisk_choose_dialog(){
-    magisk=$(dialog --stdout --title 'Select Magisk' --menu 'Make your pick::' 0 0 0 \
-    1 'Use the current Magisk' \
-    2 'Custom Magisk')
-    case "$magisk" in
-      "1")
-      unset magisk
-      return
-      ;;
-    esac
-
-    magisk=$(dialog --stdout --title "USE SPACE TO SELECT MAGISK.ZIP" --fselect /sdcard/ -1 -1)
-    [ "$?" == 1 ] && magisk_choose_dialog
-    unzip -l $magisk | grep -q libmagiskboot.so &> /dev/null
-    if [ "$?" == "0" ]; then
-        rm -rf .magisk && mkdir .magisk
-        unzip -p $magisk lib/arm64-v8a/libmagiskboot.so > .magisk/magiskboot
-        unzip -p $magisk lib/arm64-v8a/libbusybox.so > .magisk/busybox
-        unzip -p $magisk lib/arm64-v8a/libmagisk64.so > .magisk/magisk64
-        unzip -p $magisk lib/arm64-v8a/libmagiskinit.so > .magisk/magiskinit
-        unzip -p $magisk assets/boot_patch.sh > .magisk/boot_patch.sh
-        unzip -p $magisk assets/util_functions.sh > .magisk/util_functions.sh
-        mkdir .magisk/chromeos
-        unzip -j -qq $magisk assets/chromeos/* -d .magisk/chromeos/
-        chmod +x *
-    else
-        echo -e "\e[1;31mYou made an invalid choice.\e[0m"
-        sleep 3
-        magisk_choose_dialog
-    fi
+    [ -z "$magisk" ] && return
+    rm -rf .magisk && mkdir .magisk
+    unzip -p $magisk lib/arm64-v8a/libmagiskboot.so > .magisk/magiskboot
+    unzip -p $magisk lib/arm64-v8a/libbusybox.so > .magisk/busybox
+    unzip -p $magisk lib/arm64-v8a/libmagisk64.so > .magisk/magisk64
+    unzip -p $magisk lib/arm64-v8a/libmagiskinit.so > .magisk/magiskinit
+    unzip -p $magisk assets/boot_patch.sh > .magisk/boot_patch.sh
+    unzip -p $magisk assets/util_functions.sh > .magisk/util_functions.sh
+    mkdir .magisk/chromeos
+    unzip -j -qq $magisk assets/chromeos/* -d .magisk/chromeos/
+    chmod +x *
 }
 
 select_mod(){ 
-    mod=$(dialog --stdout --title 'Select MOD' --menu 'Select the number of the MOD:' 0 0 0 \
-    1 'Magisk + TWRP + DFE' \
-    2 'Magisk + DFE' \
-    3 "Magisk + TWRP" \
-    4 "TWRP + DFE" \
-    5 "TWRP Only" \
-    6 "DFE Only" \
-    7 "Magisk Only" \
-    8 "Just Repack")
-    
+    grep -q 'Magisk' <<< $addons
+    [ "$?" == 0 ] && mod+="1"
+    grep -q 'Recovery' <<< $addons
+    [ "$?" == 0 ] && mod+="2"
+    grep -q 'DFE' <<< $addons
+    [ "$?" == 0 ] && mod+="3"
     case "$mod" in
-      "1")
+      "123")
       magisk_choose_dialog
       while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
       nameext="_Magisk+TWRP+DFE_repack"
       ;;
-      "2")
+      "13")
       magisk_choose_dialog
       nameext="_Magisk+DFE_repack"
       ;;
-      "3")
+      "12")
       magisk_choose_dialog
       while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
       nameext="_Magisk+TWRP_repack"
       ;;
-      "4")
+      "23")
       while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
       nameext="_TWRP+DFE_repack"
       ;;
-      "5")
+      "2")
       while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
       nameext="_TWRP_only_repack"
       ;;
-      "6")
+      "3")
       nameext="_DFE_only_repack"
       ;;
-      "7")
+      "1")
       magisk_choose_dialog
       nameext="_Magisk_only_repack"
       ;;
-      "8")
+      "")
       nameext="_only_repack"
       ;;
     esac
@@ -474,7 +430,7 @@ multi_process(){
     img2simg extracted/$file $OUT""$file 4096
     img2sdat $OUT""$file -v4 -o $OUT -p ${file%.*} &> /dev/null  
     rm $OUT""$file && \
-    [[ $comp_level -gt 0 || "$ROMTYPE" == 1 ]] && \
+    [ $comp_level -gt 0 ] && \
         brotli -$comp_level -j $OUT""${file%.*}.new.dat
 }
 
@@ -505,10 +461,9 @@ img_to_sparse(){
 }
 
 create_zip_structure(){
-    [ -z "$repackname" ] && repackname="UnnamedRom"
-    [ ! -z "$repackrename" ] && repackname=$repackrename
+    [ -z "$name" ] && name="UnnamedRom"
     echo -e "ui_print(\"*****************************\");\n" \
-                 "ui_print(\" - $repackname by AutoRepack\");\n" \
+                 "ui_print(\" - $name by AutoRepack\");\n" \
                  "ui_print(\"*****************************\");\n\n" \
                  "run_program(\"/sbin/busybox\", \"umount\", \"/system_root\");\n" \
                  "run_program(\"/sbin/busybox\", \"umount\", \"/product\");\n" \
@@ -536,7 +491,7 @@ create_zip_structure(){
                  "run_program(\"/system/bin/bootctl\", \"set-active-boot-slot\", \"0\");\n" \
                  "set_progress(1.000000);" | sed 's/^ *//g' >> $fw_updater_path/updater-script
         echo -e "ui_print(\"*****************************\");\n" \
-                 "ui_print(\" - $repackname by AutoRepack\");\n" \
+                 "ui_print(\" - $name by AutoRepack\");\n" \
                  "ui_print(\"*****************************\");\n\n" \
                  "run_program(\"/sbin/busybox\", \"umount\", \"/system_root\");\n" \
                  "run_program(\"/sbin/busybox\", \"umount\", \"/product\");\n" \
@@ -584,7 +539,7 @@ create_zip_structure(){
               "add vendor_b qti_dynamic_partitions_b\n" \
               "resize vendor_a $VENDOR" | sed 's/^ *//g' >>$OUTFW"dynamic_partitions_op_list"
      ;;
-     2)
+     0)
       echo -e "resize vendor_a $VENDOR" >>$OUT"dynamic_partitions_op_list"
      ;;
     esac
@@ -608,20 +563,19 @@ final_act(){
         echo -e "\e[1m\e[37mPacking MIUI firmware files...\e[0m"
         echo
         cd output/MIUI/fw
-        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$repackname$nameext-Step2.zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$name$nameext-Step2.zip * -bso0
         echo
         echo -e "\e[1m\e[37mPacking MIUI rom files...\e[0m"
         echo
         cd ../rom
-        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$repackname$nameext-Step1.zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$name$nameext-Step1.zip * -bso0
     else
         echo -e "\e[1m\e[37mPacking rom files...\e[0m"
         echo
         cd $OUT
-        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$repackname$nameext.zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$name$nameext.zip * -bso0
     fi
-    chown root:everybody /sdcard/Repacks/*
-    cd $projectdir
+    cd $HOME
     sh cleanup.sh &> /dev/null
     echo -e "\e[1;32mYour repacked rom is ready to flash. You can find it in /sdcard/Repacks/ \e[0m"
     exit
@@ -629,6 +583,7 @@ final_act(){
 
 rm -rf tmp/*
 rm -rf output
+bin/cleanup.sh &> /dev/null
 integrity_check
-file_renamer
-source_check
+ui_menu
+filepicker

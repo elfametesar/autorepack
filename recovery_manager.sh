@@ -1,5 +1,6 @@
 #!/bin/sh
 
+HOME=$PWD
 PATH=$PWD/bin:$PATH
 
 successbar(){
