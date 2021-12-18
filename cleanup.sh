@@ -1,1 +1,1 @@
-rm -rf extracted/* output tmp/* 
+rm -rf extracted/* output tmp/* .conf
