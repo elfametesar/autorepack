@@ -70,13 +70,13 @@ payload_extract(){
     successbar
     rm tmp/*
     if [ ! -z "$fw" ]; then
-        unzip -l $fw | grep -q .img;
+        unzip -l "$fw" | grep -q .img;
         if [ $? == 0 ]; then
             extractTo="tmp/"
-            fullsize=$(7za l $fw *.img -r | awk 'END{ print $3 }')
+            fullsize=$(7za l "$fw" *.img -r | awk 'END{ print $3 }')
             type="Firmware Extraction"
             current=0.0
-            7za e -o$extractTo $fw *.img -r -y &> /dev/null &
+            7za e -o$extractTo "$fw" *.img -r -y &> /dev/null &
             successbar
             wait
         fi
@@ -90,13 +90,13 @@ fastboot_extract(){
     current=0.0
     if [[ "$file" == *.tgz ]]; then
         echo "\e[37mRetrieving information from archive...\e[0m"
-        fullsize=$(7za e -so $file -mmt8 | 7za l -si -ttar *.img -r -mmt8 | awk 'END{ print $4 }')
-        7za e -so $file -mmt8 | 7za e -si -ttar *.img -r -mmt8 -o$extractTo &> /dev/null &
+        fullsize=$(7za e -so "$file" -mmt8 | 7za l -si -ttar *.img -r -mmt8 | awk 'END{ print $4 }')
+        7za e -so "$file" -mmt8 | 7za e -si -ttar *.img -r -mmt8 -o$extractTo &> /dev/null &
         successbar &
         wait
     else
-        fullsize=$(7za l $file *.img -r | grep "files" | awk '{ print $3 }') 
-        7za e $file -o$extractTo *.img -y -r -mmt8 &> /dev/null &
+        fullsize=$(7za l "$file" *.img -r | grep "files" | awk '{ print $3 }') 
+        7za e "$file" -o$extractTo *.img -y -r -mmt8 &> /dev/null &
         successbar &
         wait
     fi
@@ -120,13 +120,13 @@ fastboot_extract(){
     rm -rf extracted/*_b.img
     rm extracted/rescue.img extracted/userdata.img extracted/dummy.img extracted/persist.img extracted/metadata.img extracted/metadata.img &> /dev/null
     if [ ! -z "$fw" ]; then
-        unzip -l $fw | grep -q .img;
+        unzip -l "$fw" | grep -q .img;
         if [ $? == 0 ]; then
             extractTo="tmp/"
-            fullsize=$(7za l $fw *.img -r | awk 'END{ print $3 }')
+            fullsize=$(7za l "$fw" *.img -r | awk 'END{ print $3 }')
             type="Firmware Extraction"
             current=0.0
-            7za e -o$extractTo $fw *.img -r -y &> /dev/null &
+            7za e -o$extractTo "$fw" *.img -r -y &> /dev/null &
             successbar
             wait
         fi
@@ -141,20 +141,20 @@ filepicker(){
         select_mod
         fastboot_extract
     elif [[ "$file" == *.zip ]]; then
-        unzip -l $file | grep -q payload.bin;
+        unzip -l "$file" | grep -q payload.bin;
         if [ "$?" == "0" ]; then
             rom_dialog
             select_mod
             extractTo="tmp/"
-            fullsize=$(7za l $file *.bin | awk 'END{ print $4 }')
+            fullsize=$(7za l "$file" *.bin | awk 'END{ print $4 }')
             type="Payload.bin Extraction"
             current=0.0
-            7za e -o$extractTo $file payload.bin -y -mmt8 &> /dev/null &
+            7za e -o$extractTo "$file" payload.bin -y -mmt8 &> /dev/null &
             successbar
             file=tmp/payload.bin
             payload_extract
         else
-            7za l $file super.img -r | grep -q "$super.img$"
+            7za l "$file" super.img -r | grep -q "$super.img$"
             if [ "$?" == "0" ]; then
                 rom_dialog
                 select_mod
@@ -165,7 +165,7 @@ filepicker(){
             fi
         fi
     elif [[ "$file" == *.7z ]]; then
-        7za l $file super.img -r | grep -q $super.img$
+        7za l "$file" super.img -r | grep -q $super.img$
         if [ "$?" == "0" ]; then
             payload=$file
             rom_dialog
@@ -287,14 +287,14 @@ rom_dialog(){
 magisk_choose_dialog(){
     [ -z "$magisk" ] && return
     rm -rf .magisk && mkdir .magisk
-    unzip -p $magisk lib/arm64-v8a/libmagiskboot.so > .magisk/magiskboot
-    unzip -p $magisk lib/arm64-v8a/libbusybox.so > .magisk/busybox
-    unzip -p $magisk lib/arm64-v8a/libmagisk64.so > .magisk/magisk64
-    unzip -p $magisk lib/arm64-v8a/libmagiskinit.so > .magisk/magiskinit
-    unzip -p $magisk assets/boot_patch.sh > .magisk/boot_patch.sh
-    unzip -p $magisk assets/util_functions.sh > .magisk/util_functions.sh
+    unzip -p "$magisk" lib/arm64-v8a/libmagiskboot.so > .magisk/magiskboot
+    unzip -p "$magisk" lib/arm64-v8a/libbusybox.so > .magisk/busybox
+    unzip -p "$magisk" lib/arm64-v8a/libmagisk64.so > .magisk/magisk64
+    unzip -p "$magisk" lib/arm64-v8a/libmagiskinit.so > .magisk/magiskinit
+    unzip -p "$magisk" assets/boot_patch.sh > .magisk/boot_patch.sh
+    unzip -p "$magisk" assets/util_functions.sh > .magisk/util_functions.sh
     mkdir .magisk/chromeos
-    unzip -j -qq $magisk assets/chromeos/* -d .magisk/chromeos/
+    unzip -j -qq "$magisk" assets/chromeos/* -d .magisk/chromeos/
     chmod +x *
 }
 
