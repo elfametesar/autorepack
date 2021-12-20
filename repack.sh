@@ -345,7 +345,8 @@ select_mod(){
 magisk_recovery_patch(){
     recovery_patch
     echo -e "\e[32m Patching kernel with Magisk...\e[0m"
-    [ -z $magisk ] && magiskpath="/data/adb/magisk/" || magiskpath=".magisk"
+    [ -z $magisk ] && cp -rf /data/adb/magisk/ .magisk
+    magiskpath=".magisk"
     mv -f $OUTFW""boot/boot.img $magiskpath/
     sh $magiskpath/boot_patch.sh boot.img &> /dev/null
     rm $magiskpath/boot.img
@@ -356,7 +357,8 @@ magisk_recovery_patch(){
 
 magisk_patch(){
     echo -e "\e[32m Patching kernel with Magisk...\e[0m"
-    [ -z $magisk ] && magiskpath="/data/adb/magisk/" || magiskpath=".magisk"
+    [ -z $magisk ] && cp -rf /data/adb/magisk/ .magisk
+    magiskpath=".magisk"
     ln -n extracted/boot.img $magiskpath/
     sh $magiskpath/boot_patch.sh boot.img &> /dev/null
     rm $magiskpath/boot.img
@@ -366,15 +368,17 @@ magisk_patch(){
 }
 
 recovery_patch(){
-    chmod +x aik/*
     echo -e "\e[32m Patching kernel with TWRP...\e[0m"
-    ln -n extracted/boot.img aik/
-    aik/unpackimg.sh boot.img &> /dev/null
-    rm -rf aik/ramdisk/*
-    tar xf twrp/"$twrp" -C aik/
-    aik/repackimg.sh --origsize &> /dev/null
-    mv aik/image-new.img $OUTFW""boot/boot.img
-    aik/cleanup.sh &> /dev/null
+    cp -rf /data/adb/magisk/ .magisk
+    ln -n extracted/boot.img .magisk/
+    cd .magisk
+    ./magiskboot unpack boot.img &> /dev/null
+    tar xf ../twrp/"$twrp" -C ./
+    ./magiskboot cpio ramdisk.cpio sha1 &> /dev/null
+    ./magiskboot repack boot.img &> /dev/null
+    cd ..
+    mv .magisk/new-boot.img $OUTFW""boot/boot.img
+    .magisk/magiskboot cleanup &> /dev/null
     echo -e "\e[1;32m Recovery patch is done.\e[0m"
 }
 
@@ -582,9 +586,7 @@ final_act(){
     exit
 }
 
-rm -rf tmp/*
-rm -rf output
-bin/cleanup.sh &> /dev/null
+rm -rf tmp/* output .magisk
 integrity_check
 ui_menu
 filepicker
