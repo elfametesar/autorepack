@@ -183,6 +183,7 @@ filepicker(){
     else
         echo -e "\e[1;31mYou did not choose a valid file.\e[0m"
         sleep 1
+        exit
     fi
     start_repack
 }
