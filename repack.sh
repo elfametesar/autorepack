@@ -162,6 +162,7 @@ filepicker(){
             else
                 echo -e "\e[1;31mYou did not choose a valid file.\e[0m"
                 sleep 1
+                exit
             fi
         fi
     elif [[ "$file" == *.7z ]]; then
@@ -174,6 +175,7 @@ filepicker(){
         else
             echo -e "\e[1;31mYou did not choose a valid file.\e[0m"
             sleep 1
+            exit
         fi
     elif [[ "$file" == *.bin ]]; then
         payload=$file
