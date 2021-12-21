@@ -287,9 +287,9 @@ rom_dialog(){
 
 magisk_choose_dialog(){
     [ -z "$magisk" ] && return
-    unzip -l $magisk | grep -q lib/arm64-v8a/libmagiskboot.so
+    unzip -l "$magisk" | grep -q lib/arm64-v8a/libmagiskboot.so
     [ "$?" == 0 ] && arch="arm64-v8a" || arch="armeabi-v7a"
-    rm -rf .magisk && mkdir .magisk
+    rm -rf .magisk && mkdir .magisk && chmod -R +x .magisk
     unzip -p "$magisk" lib/$arch/libmagiskboot.so > .magisk/magiskboot
     unzip -p "$magisk" lib/$arch/libbusybox.so > .magisk/busybox
     unzip -p "$magisk" lib/$arch/libmagisk64.so > .magisk/magisk64
