@@ -287,11 +287,13 @@ rom_dialog(){
 
 magisk_choose_dialog(){
     [ -z "$magisk" ] && return
+    unzip -l $magisk | grep -q lib/arm64-v8a/libmagiskboot.so
+    [ "$?" == 0 ] && arch="arm64-v8a" || arch="armeabi-v7a"
     rm -rf .magisk && mkdir .magisk
-    unzip -p "$magisk" lib/arm64-v8a/libmagiskboot.so > .magisk/magiskboot
-    unzip -p "$magisk" lib/arm64-v8a/libbusybox.so > .magisk/busybox
-    unzip -p "$magisk" lib/arm64-v8a/libmagisk64.so > .magisk/magisk64
-    unzip -p "$magisk" lib/arm64-v8a/libmagiskinit.so > .magisk/magiskinit
+    unzip -p "$magisk" lib/$arch/libmagiskboot.so > .magisk/magiskboot
+    unzip -p "$magisk" lib/$arch/libbusybox.so > .magisk/busybox
+    unzip -p "$magisk" lib/$arch/libmagisk64.so > .magisk/magisk64
+    unzip -p "$magisk" lib/$arch/libmagiskinit.so > .magisk/magiskinit
     unzip -p "$magisk" assets/boot_patch.sh > .magisk/boot_patch.sh
     unzip -p "$magisk" assets/util_functions.sh > .magisk/util_functions.sh
     mkdir .magisk/chromeos
