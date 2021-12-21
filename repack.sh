@@ -289,7 +289,7 @@ magisk_choose_dialog(){
     [ -z "$magisk" ] && return
     unzip -l "$magisk" | grep -q lib/arm64-v8a/libmagiskboot.so
     [ "$?" == 0 ] && arch="arm64-v8a" || arch="armeabi-v7a"
-    rm -rf .magisk && mkdir .magisk && chmod -R +x .magisk
+    rm -rf .magisk && mkdir .magisk
     unzip -p "$magisk" lib/$arch/libmagiskboot.so > .magisk/magiskboot
     unzip -p "$magisk" lib/$arch/libbusybox.so > .magisk/busybox
     unzip -p "$magisk" lib/$arch/libmagisk64.so > .magisk/magisk64
@@ -298,7 +298,7 @@ magisk_choose_dialog(){
     unzip -p "$magisk" assets/util_functions.sh > .magisk/util_functions.sh
     mkdir .magisk/chromeos
     unzip -j -qq "$magisk" assets/chromeos/* -d .magisk/chromeos/
-    chmod +x *
+    chmod -R +x .magisk
 }
 
 select_mod(){ 
@@ -347,7 +347,7 @@ select_mod(){
 magisk_recovery_patch(){
     recovery_patch
     echo -e "\e[32m Patching kernel with Magisk...\e[0m"
-    [ -z $magisk ] && cp -rf /data/adb/magisk/ .magisk
+    [ ! -d ".magisk" ] && cp -rf /data/adb/magisk/ .magisk
     magiskpath=".magisk"
     mv -f $OUTFW""boot/boot.img $magiskpath/
     sh $magiskpath/boot_patch.sh boot.img &> /dev/null
@@ -359,7 +359,7 @@ magisk_recovery_patch(){
 
 magisk_patch(){
     echo -e "\e[32m Patching kernel with Magisk...\e[0m"
-    [ -z $magisk ] && cp -rf /data/adb/magisk/ .magisk
+    [ ! -d ".magisk" ] && cp -rf /data/adb/magisk/ .magisk
     magiskpath=".magisk"
     ln -n extracted/boot.img $magiskpath/
     sh $magiskpath/boot_patch.sh boot.img &> /dev/null
@@ -371,7 +371,7 @@ magisk_patch(){
 
 recovery_patch(){
     echo -e "\e[32m Patching kernel with TWRP...\e[0m"
-    cp -rf /data/adb/magisk/ .magisk
+    [ ! -d ".magisk" ] && cp -rf /data/adb/magisk/ .magisk
     ln -n extracted/boot.img .magisk/
     cd .magisk
     ./magiskboot unpack boot.img &> /dev/null
