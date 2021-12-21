@@ -33,6 +33,7 @@ ui_menu(){
     opts=$(tr -d "[]" < .conf | sed 's/None//')
     file=$(sed -n 1p <<< $opts)
     name=$(sed -n 2p <<< $opts)
+    name=$(basename "$name" .)
     ROMTYPE=$(sed -n 3p <<< $opts)
     fw=$(sed -n 4p <<< $opts)
     rw=$(sed -n 5p <<< $opts)
