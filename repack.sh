@@ -257,17 +257,6 @@ start_repack(){
      esac
 }
 
-source_check(){
-    while [ -z "$file" ];
-    do
-        if [ -n "$(ls extracted/*.img &> /dev/null)" ]; then
-            return
-        else
-            filepicker
-        fi
-    done
-}
-
 rom_dialog(){
     case "$ROMTYPE" in
      "0")
