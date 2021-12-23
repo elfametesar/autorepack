@@ -48,10 +48,10 @@ add(){
     echo -e "\e[0m\e[37mUnpacking recovery image\e[0m" >&2
     ./magiskboot unpack "$input" &> /dev/null
     echo -e "\e[0m\e[37mCreating recovery package\e[0m" >&2
-    tar -cf - ramdisk.cpio | xz -1 -c - > "$rename"
+    tar -cf - ramdisk.cpio | xz -1 -c - > "$name"
     cd ..
     [ ! -f ".magisk/ramdisk.cpio" ] && echo -e "\e[0m\e[1;31mErrors occured, aborting\e[0m" >&2 && rm -rf .magisk &> /dev/null && sleep 2 && return 1
-    mv .magisk/"$rename" twrp/
+    mv .magisk/"$name" twrp/
     echo -e "\e[0m\e[37mCleaning up the workspace\e[0m" >&2
     rm -rf .magisk &> /dev/null
     return
