@@ -32,8 +32,8 @@ ui_menu(){
     [ ! -f ".conf" ] && exit
     opts=$(tr -d "[]" < .conf | sed 's/None//')
     file=$(sed -n 1p <<< $opts)
-    name=$(sed -n 2p <<< $opts)
-    name=$(basename "$name" .)
+    name=$(echo "$(sed -n 2p <<< $opts)" | sed 's/\.[^.]*$//')
+    echo $name && sleep 5
     ROMTYPE=$(sed -n 3p <<< $opts)
     fw=$(sed -n 4p <<< $opts)
     rw=$(sed -n 5p <<< $opts)
@@ -235,6 +235,7 @@ start_repack(){
       "3")
       make_rw
       vendor_patch
+      ln -n extracted/boot.img $OUTFW""boot/boot.img
       get_image_size
       img_to_sparse
       final_act
