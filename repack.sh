@@ -401,7 +401,7 @@ vendor_patch(){
         echo -e "\e[1;32m Vendor image has temporarily been mounted.\e[0m"
         sh dfe.sh tmp/ &> /dev/null
         sh dfe.sh tmp/ 
-        sed 's/encrypted/unsupported/' tmp/etc/init/hw/init.gourami.rc
+        sed -i 's/encrypted/unsupported/' tmp/etc/init/hw/init.gourami.rc &> /dev/null
         umount tmp
     else
         echo -e "\e[1;31m Vendor image could not be mounted. Continuing without DFE patch.\e[0m"
