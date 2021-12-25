@@ -400,6 +400,7 @@ get_image_size(){
 vendor_patch(){
     tune2fs -f -O ^read-only extracted/vendor.img &> /dev/null
     echo -e "\e[1m\e[37m Mounting vendor.img... \e[0m"
+    umount tmp &> /dev/null
     count=0
     while [ $count -le 5 ]; do
         let "count++"
