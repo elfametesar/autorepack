@@ -7,7 +7,7 @@ export TERMINFO=$PREFIX/share/terminfo/
 mkdir -p /sdcard/Repacks
 HOME=$PWD
 
-trap "jobs -p | xargs kill &> /dev/null" EXIT
+trap "jobs -p | xargs kill &> /dev/null" SIGTERM
 
 integrity_check(){
     headcount=0
@@ -431,7 +431,7 @@ make_rw(){
 multi_process(){
     img2simg extracted/$file $OUT""$file 4096
     img2sdat $OUT""$file -v4 -o $OUT -p ${file%.*} &> /dev/null  
-    rm $OUT""$file && \
+    rm $OUT""$file 2> /dev/null && \
     [ $comp_level -gt 0 ] && \
         brotli -$comp_level -j $OUT""${file%.*}.new.dat
 }
