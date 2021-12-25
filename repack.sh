@@ -450,13 +450,17 @@ multi_process(){
 img_to_sparse(){
     echo
     echo -e "\e[1;32m Converting images in background\e[0m" 
+    increment=`awk 'BEGIN{ print 9126805504-'$total' }'`
     for file in $(ls -1 extracted | grep .img)
     do
         if ! case "$file" in (system.img|product.img|system_ext.img|odm.img|vendor.img) false; esac; then
-            [ "$file" == "system.img" ] && \
-                 increment=`awk 'BEGIN{ print 9126805504-'$total' }'` && \
-                 fallocate -l $increment extracted/$file && \
-                 resize2fs extracted/$file &> /dev/null
+            if [ "$file" == "system.img" ]; then
+                fallocate -l `echo $increment/2 | bc` extracted/$file
+                resize2fs extracted/$file &> /dev/null
+            else
+                fallocate -l `echo $increment/2/4 | bc` extracted/$file
+                resize2fs extracted/$file &> /dev/null 
+            fi
             multi_process &
             continue
         fi
