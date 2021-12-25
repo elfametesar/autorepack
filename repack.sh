@@ -199,6 +199,7 @@ start_repack(){
       get_image_size
       img_to_sparse
       magisk_recovery_patch
+      get_image_size
       final_act
       ;;
       "13")
@@ -207,6 +208,7 @@ start_repack(){
       get_image_size
       img_to_sparse
       magisk_patch
+      get_image_size
       final_act
       ;;
       "12")
@@ -214,6 +216,7 @@ start_repack(){
       get_image_size
       img_to_sparse
       magisk_recovery_patch
+      get_image_size
       final_act
       ;;
       "23")
@@ -222,6 +225,7 @@ start_repack(){
       get_image_size
       img_to_sparse
       recovery_patch
+      get_image_size
       final_act
       ;;
       "2")
@@ -229,6 +233,7 @@ start_repack(){
       get_image_size
       img_to_sparse
       recovery_patch
+      get_image_size
       final_act
       ;;
       "3")
@@ -237,6 +242,7 @@ start_repack(){
       ln -n extracted/boot.img $OUTFW""boot/boot.img
       get_image_size
       img_to_sparse
+      get_image_size
       final_act
       ;;
       "1")
@@ -244,6 +250,7 @@ start_repack(){
       get_image_size
       img_to_sparse
       magisk_patch
+      get_image_size
       final_act
       ;;
       "")
@@ -251,6 +258,7 @@ start_repack(){
       get_image_size
       ln -n extracted/boot.img $OUTFW""boot/boot.img
       img_to_sparse
+      get_image_size
       final_act
       ;;
      esac
@@ -448,8 +456,7 @@ img_to_sparse(){
             [ "$file" == "system.img" ] && \
                  increment=`awk 'BEGIN{ print 9126805504-'$total' }'` && \
                  fallocate -l $increment extracted/$file && \
-                 resize2fs extracted/$file &> /dev/null \
-                 SYSTEM="$(stat -c%s extracted/system.img | cut -f1)"
+                 resize2fs extracted/$file &> /dev/null
             multi_process &
             continue
         fi
