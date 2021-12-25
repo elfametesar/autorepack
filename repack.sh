@@ -383,7 +383,10 @@ get_image_size(){
     PRODUCT="$(stat -c%s extracted/product.img | cut -f1)"
     if [ ! -z "$(ls extracted | grep odm.img)" ]; then
         ODM="$(stat -c%s extracted/odm.img | cut -f1)"
+    else
+        ODM=0
     fi
+    total=`awk 'BEGIN{ print '$VENDOR'+'$SYSTEM'+'$SYSTEMEXT'+'$PRODUCT'+'$ODM' }'`
 }
 
 vendor_patch(){
