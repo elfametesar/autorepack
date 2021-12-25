@@ -422,6 +422,8 @@ make_rw(){
           new_size=$(du -sb $img | awk '{ print $1/4096+48829 }')
           resize2fs $img $new_size &> /dev/null
           e2fsck -y -E unshare_blocks $img &> /dev/null
+          e2fsck -fy $img &> /dev/null
+          resize2fs -M $img &> /dev/null
          esac
     done
 }
@@ -440,6 +442,11 @@ img_to_sparse(){
     for file in $(ls -1 extracted | grep .img)
     do
         if ! case "$file" in (system.img|product.img|system_ext.img|odm.img|vendor.img) false; esac; then
+            [ "$file" == "system.img" ] && \
+                 increment=`awk 'BEGIN{ print 9126805504-'$total' }'` && \
+                 fallocate -l $increment extracted/$file && \
+                 resize2fs extracted/$file &> /dev/null \
+                 SYSTEM="$(stat -c%s extracted/system.img | cut -f1)"
             multi_process &
             continue
         fi
