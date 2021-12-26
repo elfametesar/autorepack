@@ -585,17 +585,17 @@ final_act(){
         echo -e "\e[1m\e[37mPacking MIUI firmware files...\e[0m"
         echo
         cd output/MIUI/fw
-        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$name$nameext-Step2.zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext"-Step2.zip * -bso0
         echo
         echo -e "\e[1m\e[37mPacking MIUI rom files...\e[0m"
         echo
         cd ../rom
-        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$name$nameext-Step1.zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext"-Step1.zip * -bso0
     else
         echo -e "\e[1m\e[37mPacking rom files...\e[0m"
         echo
         cd $OUT
-        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/$name$nameext.zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext".zip * -bso0
     fi
     cd $HOME
     sh cleanup.sh &> /dev/null
