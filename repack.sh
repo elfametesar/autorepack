@@ -7,7 +7,7 @@ export TERMINFO=$PREFIX/share/terminfo/
 mkdir -p /sdcard/Repacks
 HOME=$PWD
 
-trap "jobs -p | xargs kill &> /dev/null" SIGTERM
+trap "jobs -p | xargs -n 1 kill -9 &> /dev/null" EXIT
 
 integrity_check(){
     headcount=0
