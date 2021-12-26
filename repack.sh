@@ -442,8 +442,8 @@ make_rw(){
 
 multi_process(){
     img2simg extracted/$file $OUT""$file 4096
-    img2sdat $OUT""$file -v4 -o $OUT -p ${file%.*} &> /dev/null  
-    rm $OUT""$file 2> /dev/null && \
+    img2sdat $OUT""$file -v4 -o $OUT -p ${file%.*} 
+    rm $OUT""$file && \
     [ $comp_level -gt 0 ] && \
         brotli -$comp_level -j $OUT""${file%.*}.new.dat
 }
@@ -456,13 +456,13 @@ img_to_sparse(){
     do
         if ! case "$file" in (system.img|product.img|system_ext.img|odm.img|vendor.img) false; esac; then
             if [ "$file" == "system.img" ]; then
-                fallocate -l `echo $increment/2 | bc` extracted/$file
+                fallocate -l `echo $SYSTEM+$increment/2 | bc` extracted/$file
                 resize2fs extracted/$file &> /dev/null
-            else
-                fallocate -l `echo $increment/2/4 | bc` extracted/$file
+            elif [ ! "$file" == "odm.img" ]; then
+                fallocate -l `echo $(du -sb extracted/$file|cut -f1)+$increment/2/3 | bc` extracted/$file
                 resize2fs extracted/$file &> /dev/null 
             fi
-            multi_process &
+            multi_process &> /dev/null &
             continue
         fi
         if ! case "$file" in (vendor_boot.img|dtbo.img) false; esac; then
