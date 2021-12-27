@@ -451,7 +451,7 @@ multi_process(){
 img_to_sparse(){
     echo
     echo -e "\e[1;32m Converting images in background\e[0m" 
-    increment=`awk 'BEGIN{ print 9126805504-'$total' }'`
+    increment=`awk 'BEGIN{ print 9122611200-'$total' }'`
     for file in $(ls -1 extracted | grep .img)
     do
         if ! case "$file" in (system.img|product.img|system_ext.img|odm.img|vendor.img) false; esac; then
