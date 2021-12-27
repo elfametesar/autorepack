@@ -193,38 +193,11 @@ filepicker(){
 
 start_repack(){
      case "$mod" in
-      "123")
+      "1")
       make_rw
-      vendor_patch
-      get_image_size
-      img_to_sparse
-      magisk_recovery_patch
-      get_image_size
-      final_act
-      ;;
-      "13")
-      make_rw
-      vendor_patch
       get_image_size
       img_to_sparse
       magisk_patch
-      get_image_size
-      final_act
-      ;;
-      "12")
-      make_rw
-      get_image_size
-      img_to_sparse
-      magisk_recovery_patch
-      get_image_size
-      final_act
-      ;;
-      "23")
-      make_rw
-      vendor_patch
-      get_image_size
-      img_to_sparse
-      recovery_patch
       get_image_size
       final_act
       ;;
@@ -245,11 +218,38 @@ start_repack(){
       get_image_size
       final_act
       ;;
-      "1")
+      "12")
       make_rw
       get_image_size
       img_to_sparse
+      magisk_recovery_patch
+      get_image_size
+      final_act
+      ;;
+      "13")
+      make_rw
+      vendor_patch
+      get_image_size
+      img_to_sparse
       magisk_patch
+      get_image_size
+      final_act
+      ;;
+      "23")
+      make_rw
+      vendor_patch
+      get_image_size
+      img_to_sparse
+      recovery_patch
+      get_image_size
+      final_act
+      ;;
+      "123")
+      make_rw
+      vendor_patch
+      get_image_size
+      img_to_sparse
+      magisk_recovery_patch
       get_image_size
       final_act
       ;;
@@ -424,18 +424,18 @@ vendor_patch(){
 }
 
 make_rw(){
-    [ "$rw" == "0" ] && return
     echo -e "\e[1m\e[37mGiving read and write permissions...\e[0m"
-    for img in extracted/*img; do
-        case "$(basename $img /)" in
+    for img in `ls extracted/ | grep .img`; do
+        case "$img" in
          (system.img|system_ext.img|vendor.img|product.img|odm.img)
-          tune2fs -l $img | grep -q 'shared_blocks'
+          [ "$rw" == "0" ] && [ ! $img == "vendor.img" ] && continue
+          tune2fs -l extracted/$img | grep -q 'shared_blocks'
           [ "$?" == 1 ] && continue
-          new_size=$(du -sb $img | awk '{ print $1/4096+48829 }')
-          resize2fs $img $new_size &> /dev/null
-          e2fsck -y -E unshare_blocks $img &> /dev/null
-          e2fsck -fy $img &> /dev/null
-          resize2fs -M $img &> /dev/null
+          new_size=$(du -sb extracted/$img | awk '{ print $1/4096+48829 }')
+          resize2fs extracted/$img $new_size &> /dev/null
+          e2fsck -y -E unshare_blocks extracted/$img &> /dev/null
+          e2fsck -fy extracted/$img &> /dev/null
+          resize2fs -M extracted/$img &> /dev/null
          esac
     done
 }
