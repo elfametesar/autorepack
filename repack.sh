@@ -431,11 +431,7 @@ make_rw(){
           [ "$rw" == "0" ] && [ ! $img == "vendor.img" ] && continue
           tune2fs -l extracted/$img | grep -q 'shared_blocks'
           [ "$?" == 1 ] && continue
-          new_size=$(du -sb extracted/$img | awk '{ print $1/4096+48829 }')
-          resize2fs extracted/$img $new_size &> /dev/null
-          e2fsck -y -E unshare_blocks extracted/$img &> /dev/null
-          e2fsck -fy extracted/$img &> /dev/null
-          resize2fs -M extracted/$img &> /dev/null
+          sh rw.sh extracted/$img &> /dev/null
          esac
     done
 }
@@ -455,13 +451,6 @@ img_to_sparse(){
     for file in $(ls -1 extracted | grep .img)
     do
         if ! case "$file" in (system.img|product.img|system_ext.img|odm.img|vendor.img) false; esac; then
-            if [ "$file" == "system.img" ]; then
-                fallocate -l `echo $SYSTEM+$increment/2 | bc` extracted/$file
-                resize2fs extracted/$file &> /dev/null
-            elif [ ! "$file" == "odm.img" ]; then
-                fallocate -l `echo $(du -sb extracted/$file|cut -f1)+$increment/2/3 | bc` extracted/$file
-                resize2fs extracted/$file &> /dev/null 
-            fi
             multi_process &> /dev/null &
             continue
         fi
