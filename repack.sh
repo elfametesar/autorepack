@@ -399,6 +399,7 @@ get_image_size(){
 
 vendor_patch(){
     tune2fs -f -O ^read-only extracted/vendor.img &> /dev/null
+    process_rw extracted/vendor.img &> /dev/null
     echo -e "\e[1m\e[37m Mounting vendor.img... \e[0m"
     umount tmp &> /dev/null
     count=0
@@ -423,15 +424,28 @@ vendor_patch(){
     fi
 }
 
+process_rw(){
+    imgsize=$(wc -c < $1)
+    new_size=$(echo $imgsize | awk '{print ($1 * 1.25) / 512}')
+    resize2fs -f $1 ${new_size}s
+    e2fsck -y -E unshare_blocks $1 &> /dev/null
+    resize2fs -f -M $1
+    resize2fs -f -M $1
+    
+    imgsize=$(wc -c < $1)
+    new_size=$(echo $imgsize | awk '{print int(($1 + 20 * 1024 * 1024) / 512)}')
+    resize2fs -f $1 ${new_size}s
+}
+
 make_rw(){
+    [ "$rw" == "0" ] && return
     echo -e "\e[1m\e[37mGiving read and write permissions...\e[0m"
     for img in `ls extracted/ | grep .img`; do
         case "$img" in
          (system.img|system_ext.img|vendor.img|product.img|odm.img)
-          [ "$rw" == "0" ] && [ ! $img == "vendor.img" ] && continue
           tune2fs -l extracted/$img | grep -q 'shared_blocks'
           [ "$?" == 1 ] && continue
-          sh rw.sh extracted/$img &> /dev/null
+          process_rw extracted/$img &> /dev/null
          esac
     done
 }
@@ -447,10 +461,22 @@ multi_process(){
 img_to_sparse(){
     echo
     echo -e "\e[1;32m Converting images in background\e[0m" 
-    increment=`awk 'BEGIN{ print 8988393472-'$total' }'`
+    empty_space=`awk 'BEGIN{ print 8988393472-'$total' }'`
     for file in $(ls -1 extracted | grep .img)
     do
         if ! case "$file" in (system.img|product.img|system_ext.img|odm.img|vendor.img) false; esac; then
+            if [ `awk 'BEGIN{print int('$SYSTEM'/1024/1024)}'` -lt 4000 ]; then
+                if [ "$file" == "odm.img" ]; then
+                    multi_process &> /dev/null &
+                    continue
+                elif [ "$file" == "system.img" ]; then
+                    new_size=$(echo $SYSTEM+$empty_space/2 | bc)
+                else
+                    new_size=$(echo `du -sb extracted/$file|cut -f1`+$empty_space/2/3 | bc)
+                fi
+                fallocate -l $new_size extracted/$file
+                resize2fs -f extracted/$file &> /dev/null
+            fi
             multi_process &> /dev/null &
             continue
         fi
