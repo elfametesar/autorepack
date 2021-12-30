@@ -1,4 +1,4 @@
-#!/bin/sh
+#!$PREFIX/bin/bash
 
 export PATH=$PWD/bin:$PATH
 export LC_ALL=C
@@ -9,126 +9,92 @@ HOME=$PWD
 
 trap "jobs -p | xargs -n 1 kill -9 &> /dev/null" EXIT
 
+calc(){ awk 'BEGIN{ print int('$1') }'; }
+
 integrity_check(){
-    headcount=0
-    if [ ! -e extracted/*.img &> /dev/null ]; then sh cleanup.sh; return; fi
-    for check in $(ls extracted/*.img | xargs -n1 basename)
+    [ -z "`ls extracted | grep '.img'`" ] && sh cleanup.sh && return
+    for check in `ls extracted | grep .img`;
     do
-        case "$check" in (system.img|product.img|system_ext.img|boot.img|vendor_boot.img|dtbo.img)
-           let "headcount+=1"
+        case $check in (system.img|product.img|system_ext.img|boot.img|vendor_boot.img|dtbo.img)
+           ((headcount++))
         esac
     done
-    if [ ! "$headcount" == 6 ]; then
+    if ((headcount != 6)); then
         dialog --title "Integrity Check" --msgbox "There are some useless leftover .img files in the workspace. They will be cleaned up." 6 50
         sh cleanup.sh &> /dev/null
     else
         dialog --yesno "You already have some extracted img files in workspace. Do you want to continue with them?" 6 50
-        if [ "$?" == "0" ]; then ui_menu; rom_dialog; select_mod; start_repack; else sh cleanup.sh; return; fi
+        (($? == 0)) && ui_menu && rom_dialog && select_mod && start_repack || sh cleanup.sh || return
     fi
 }
 
 ui_menu(){
     [ ! -f ".conf" ] && menu
     [ ! -f ".conf" ] && exit
-    opts=$(tr -d "[]" < .conf | sed 's/None//')
-    file=$(sed -n 1p <<< $opts)
-    name=$(echo "$(sed -n 2p <<< $opts)" | sed 's/\.[^.]*$//')
-    ROMTYPE=$(sed -n 3p <<< $opts)
-    fw=$(sed -n 4p <<< $opts)
-    rw=$(sed -n 5p <<< $opts)
-    comp_level=$(sed -n 6p <<< $opts)
-    mm=$(sed -n 7p <<< $opts)
-    [ $mm -eq 1 ] && magisk=$(sed -n 8p <<< $opts) 
-    addons=$(sed -n 9p <<< $opts)
+    read -d "\n" file name ROMTYPE fw rw comp_level mm magisk addons <<< `sed 's/[][]//g' .conf`
+    ((mm == 0)) && unset magisk
 }
 
 successbar(){
+    extractTo=$1
+    extract_type=$2
+    fullsize=$3
     (
-    while [[ ! ${current%\.*} -eq 100 ]];
-     do
-     curfile=$(ls -tc $extractTo | head -n 1)
-     chunk=$(du -sb $extractTo | awk '{print $1}')
-     current=$(bc -l <<< $chunk/$fullsize*100)
-     echo ${current%\.*}
-     echo "XXX"
-     echo "‎"
-     echo "Files are extracting: $curfile"
-     echo "XXX"
-     sleep 1
+    while ((${current:=0} != 100));
+    do
+        curfile=`ls -tc $extractTo | head -n 1`
+        chunk=`du -sb $extractTo | cut -f1`
+        current=`calc "($chunk/$fullsize)*100"`
+        echo $current
+        echo "XXX"
+        echo "‎"
+        echo "Files are extracting: $curfile"
+        echo "XXX"
+        sleep 1
      done
      ) |
-     dialog  --title "$type" --gauge "" 7 70 0
+     dialog  --title "$extract_type" --gauge "" 7 70 0
 }
 
 payload_extract(){
-    extractTo="extracted/"
-    fullsize=$(paydump -l $file $extractTo | tail -1)
-    sleep 3
-    type="Payload Image Extraction"
-    current=0.0
-    paydump -c 8 -o $extractTo $file &> /dev/null &
-    successbar
-    rm tmp/*
-    if [ ! -z "$fw" ]; then
-        unzip -l "$fw" | grep -q .img;
-        if [ $? == 0 ]; then
-            extractTo="tmp/"
-            fullsize=$(7za l "$fw" *.img -r | awk 'END{ print $3 }')
-            type="Firmware Extraction"
-            current=0.0
-            7za e -o$extractTo "$fw" *.img -r -y &> /dev/null &
-            successbar
-            wait
+    paydump -c 8 -o extracted/ "$file" &> /dev/null &
+    successbar extracted "Payload Image Extraction" `paydump -l $file | tail -1`
+    if [ ! "$fw" == "None" ]; then
+        if ( unzip -l "$fw" | grep -q .img ); then
+            7za e -otmp/ "$fw" *.img -r -y &> /dev/null &
+            successbar "tmp/" "Firmware Extraction" `7za l "$fw" *.img -r | awk 'END{ print $3 }'`
         fi
         mv tmp/* extracted/
     fi
 }
 
 fastboot_extract(){
-    type="Fastboot Image Extraction"
-    extractTo="tmp/"
-    current=0.0
     if [[ "$file" == *.tgz ]]; then
-        echo "\e[37mRetrieving information from archive...\e[0m"
-        fullsize=$(7za e -so "$file" -mmt8 | 7za l -si -ttar *.img -r -mmt8 | awk 'END{ print $4 }')
-        7za e -so "$file" -mmt8 | 7za e -si -ttar *.img -r -mmt8 -o$extractTo &> /dev/null &
-        successbar &
-        wait
+        printf "\e[37m%s\e[0m\n" "Retrieving information from archive..."
+        7za e -so "$file" -mmt8 | 7za e -si -ttar *.img -r -mmt8 -otmp/ &> /dev/null &
+        successbar tmp "Fastboot Image Extraction" `7za e -so "$file" -mmt8 | 7za l -si -ttar *.img -r -mmt8 | awk 'END{ print $4 }'`
     else
-        fullsize=$(7za l "$file" *.img -r | grep "files" | awk '{ print $3 }') 
-        7za e "$file" -o$extractTo *.img -y -r -mmt8 &> /dev/null &
-        successbar &
-        wait
+        7za e "$file" -otmp/ *.img -y -r -mmt8 &> /dev/null &
+        successbar tmp "Fastboot Image Extraction" `7za l "$file" *.img -r | grep "files" | awk '{ print $3 }'`
     fi
-    echo
-    file tmp/super.img | grep -q sparse
-    if [[ "$?" == "0" ]]; then
-        echo -e "\e[37mConverting super.img to raw...\e[0m"
+    printf "%s\n"
+    if ( file tmp/super.img | grep -q sparse ); then
+        printf "\e[37m%s\e[0m\n" "Converting super.img to raw..."
         simg2img tmp/super.img extracted/super.img
         rm tmp/super.img
-    else
-        mv tmp/super.img extracted/
     fi
-    mv tmp/* extracted/
-    echo -e "\e[37mUnpacking super...\e[0m"
+    [ ! -z "`ls tmp | grep .img`" ] && mv tmp/*.img extracted/
+    printf "\e[37m%s\e[0m\n" "Unpacking super..."
     lpunpack --slot=0 extracted/super.img extracted/
     rm extracted/super.img
     for file in extracted/*_a.img ; do
-        mv $file extracted/$(basename $file _a.img).img
+        mv $file extracted/${file%%_a.img}
     done
-    rm -rf tmp/*
-    rm -rf extracted/*_b.img
-    rm extracted/rescue.img extracted/userdata.img extracted/dummy.img extracted/persist.img extracted/metadata.img extracted/metadata.img &> /dev/null
-    if [ ! -z "$fw" ]; then
-        unzip -l "$fw" | grep -q .img;
-        if [ $? == 0 ]; then
-            extractTo="tmp/"
-            fullsize=$(7za l "$fw" *.img -r | awk 'END{ print $3 }')
-            type="Firmware Extraction"
-            current=0.0
-            7za e -o$extractTo "$fw" *.img -r -y &> /dev/null &
-            successbar
-            wait
+    rm -rf tmp/* extracted/*_b.img extracted/rescue.img extracted/userdata.img extracted/dummy.img extracted/persist.img extracted/metadata.img extracted/metadata.img
+    if [ ! "$fw" == "None" ]; then
+        if ( unzip -l "$fw" | grep -q .img ); then
+            7za e -otmp/ "$fw" *.img -r -y &> /dev/null &
+            successbar tmp "Firmware Extraction" `7za l "$fw" *.img -r | awk 'END{ print $3 }'`
         fi
         mv tmp/* extracted/
     fi
@@ -136,159 +102,156 @@ fastboot_extract(){
 
 
 filepicker(){
-    if [[ "$file" == *.tgz ]]; then
+    case "$file" in
+     *.tgz)
         rom_dialog
         select_mod
         fastboot_extract
-    elif [[ "$file" == *.zip ]]; then
-        unzip -l "$file" | grep -q payload.bin;
-        if [ "$?" == "0" ]; then
+     ;;
+     *.zip)
+        if ( unzip -l "$file" | grep -q payload.bin ); then
             rom_dialog
             select_mod
-            extractTo="tmp/"
-            fullsize=$(7za l "$file" *.bin | awk 'END{ print $4 }')
-            type="Payload.bin Extraction"
-            current=0.0
-            7za e -o$extractTo "$file" payload.bin -y -mmt8 &> /dev/null &
-            successbar
+            7za e -otmp/ "$file" payload.bin -y -mmt8 &> /dev/null &
+            successbar tmp "Payload.bin Extraction" `7za l "$file" *.bin | awk 'END{ print $4 }'`
             file=tmp/payload.bin
             payload_extract
+            rm -rf tmp/*
         else
-            7za l "$file" super.img -r | grep -q "$super.img$"
-            if [ "$?" == "0" ]; then
+            if ( 7za l "$file" super.img -r | grep -q "$super.img$" ); then
                 rom_dialog
                 select_mod
                 fastboot_extract
             else
-                echo -e "\e[1;31mYou did not choose a valid file.\e[0m"
-                sleep 1
+                printf "\e[1;31m%s\e[0m\n" "You did not choose a valid file" 1>&2
                 exit
             fi
         fi
-    elif [[ "$file" == *.7z ]]; then
-        7za l "$file" super.img -r | grep -q $super.img$
-        if [ "$?" == "0" ]; then
-            payload=$file
+     ;;
+     *.7z)
+        if ( 7za l "$file" super.img -r | grep -q $super.img$ ); then
             rom_dialog
             select_mod
             fastboot_extract
         else
-            echo -e "\e[1;31mYou did not choose a valid file.\e[0m"
-            sleep 1
+            printf "\e[1;31m%s\e[0m\n" "You did not choose a valid file" 1>&2
             exit
         fi
-    elif [[ "$file" == *.bin ]]; then
-        payload=$file
+     ;;
+     *.bin)
         rom_dialog
         select_mod
         payload_extract
-    else
-        echo -e "\e[1;31mYou did not choose a valid file.\e[0m"
-        sleep 1
+     ;;
+     ''|*)
+        printf "\e[1;31m%s\e[0m\n" "You did not choose a valid file" 1>&2
         exit
-    fi
+     ;;
+    esac
     start_repack
 }
 
 
 start_repack(){
-     case "$mod" in
+    case $mod in
       "1")
-      make_rw
-      get_image_size
-      img_to_sparse
-      magisk_patch
-      get_image_size
-      final_act
+        make_rw
+        get_image_size
+        img_to_sparse
+        magisk_patch
+        get_image_size
+        final_act
       ;;
       "2")
-      make_rw
-      get_image_size
-      img_to_sparse
-      recovery_patch
-      get_image_size
-      final_act
+        make_rw
+        get_image_size
+        img_to_sparse
+        recovery_patch
+        get_image_size
+        final_act
       ;;
       "3")
-      make_rw
-      vendor_patch
-      ln -n extracted/boot.img $OUTFW""boot/boot.img
-      get_image_size
-      img_to_sparse
-      get_image_size
-      final_act
+        make_rw
+        vendor_patch
+        ln -n extracted/boot.img ${OUTFW}boot/boot.img
+        get_image_size
+        img_to_sparse
+        get_image_size
+        final_act
       ;;
       "12")
-      make_rw
-      get_image_size
-      img_to_sparse
-      magisk_recovery_patch
-      get_image_size
-      final_act
+        make_rw
+        get_image_size
+        img_to_sparse
+        recovery_patch
+        magisk_patch
+        get_image_size
+        final_act
       ;;
       "13")
-      make_rw
-      vendor_patch
-      get_image_size
-      img_to_sparse
-      magisk_patch
-      get_image_size
-      final_act
+        make_rw
+        vendor_patch
+        get_image_size
+        img_to_sparse
+        magisk_patch
+        get_image_size
+        final_act
       ;;
       "23")
-      make_rw
-      vendor_patch
-      get_image_size
-      img_to_sparse
-      recovery_patch
-      get_image_size
-      final_act
+        make_rw
+        vendor_patch
+        get_image_size
+        img_to_sparse
+        recovery_patch
+        get_image_size
+        final_act
       ;;
       "123")
-      make_rw
-      vendor_patch
-      get_image_size
-      img_to_sparse
-      magisk_recovery_patch
-      get_image_size
-      final_act
+        make_rw
+        vendor_patch
+        get_image_size
+        img_to_sparse
+        recovery_patch
+        magisk_patch
+        get_image_size
+        final_act
       ;;
       "")
-      make_rw
-      get_image_size
-      ln -n extracted/boot.img $OUTFW""boot/boot.img
-      img_to_sparse
-      get_image_size
-      final_act
+        make_rw
+        get_image_size
+        ln -n extracted/boot.img ${OUTFW}boot/boot.img
+        img_to_sparse
+        get_image_size
+        final_act
       ;;
      esac
 }
 
 rom_dialog(){
-    case "$ROMTYPE" in
-     "0")
-    OUT="./output/AOSP/"
-    OUTFW="./output/AOSP/"
-    mkdir -p $OUT
+    case $ROMTYPE in
+      "0")
+        OUT="./output/AOSP/"
+        OUTFW="./output/AOSP/"
+        mkdir -p $OUT
     ;;
-    "1")
-    OUT="./output/MIUI/rom/"
-    OUTFW="./output/MIUI/fw/"
-    mkdir -p $OUT $OUTFW
-    comp_level=3
+     "1")
+        OUT="./output/MIUI/rom/"
+        OUTFW="./output/MIUI/fw/"
+        mkdir -p $OUT $OUTFW
+        comp_level=3
     ;;
     esac
-    rom_updater_path="$OUT""META-INF/com/google/android"
-    fw_updater_path="$OUTFW""META-INF/com/google/android"
-    mkdir -p $OUTFW""boot $rom_updater_path
-    mkdir -p $fw_updater_path $OUTFW""firmware-update $OUTFW""boot
+    rom_updater_path="${OUT}META-INF/com/google/android"
+    fw_updater_path="${OUTFW}META-INF/com/google/android"
+    mkdir -p ${OUTFW}boot $rom_updater_path
+    mkdir -p $fw_updater_path ${OUTFW}firmware-update ${OUTFW}boot
 
 }
 
 magisk_choose_dialog(){
     [ -z "$magisk" ] && return
     unzip -l "$magisk" | grep -q lib/arm64-v8a/libmagiskboot.so
-    [ "$?" == 0 ] && arch="arm64-v8a" || arch="armeabi-v7a"
+    (( $? == 0 )) && arch="arm64-v8a" || arch="armeabi-v7a"
     rm -rf .magisk && mkdir .magisk
     unzip -p "$magisk" lib/$arch/libmagiskboot.so > .magisk/magiskboot
     unzip -p "$magisk" lib/$arch/libbusybox.so > .magisk/busybox
@@ -302,75 +265,58 @@ magisk_choose_dialog(){
 }
 
 select_mod(){ 
-    grep -q 'Magisk' <<< $addons
-    [ "$?" == 0 ] && mod+="1"
-    grep -q 'Recovery' <<< $addons
-    [ "$?" == 0 ] && mod+="2"
-    grep -q 'DFE' <<< $addons
-    [ "$?" == 0 ] && mod+="3"
-    case "$mod" in
+    ( grep -q 'Magisk' <<< $addons ) && mod+="1"
+    ( grep -q 'Recovery' <<< $addons ) && mod+="2"
+    ( grep -q 'DFE' <<< $addons ) && mod+="3"
+    case $mod in
       "123")
-      magisk_choose_dialog
-      while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="_Magisk+TWRP+DFE_repack"
+        magisk_choose_dialog
+        while [ -z "$twrp" ]; do twrp=`sh recovery_manager.sh`; done
+        nameext="_Magisk+TWRP+DFE_repack"
       ;;
       "13")
-      magisk_choose_dialog
-      nameext="_Magisk+DFE_repack"
+        magisk_choose_dialog
+        nameext="_Magisk+DFE_repack"
       ;;
       "12")
-      magisk_choose_dialog
-      while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="_Magisk+TWRP_repack"
+        magisk_choose_dialog
+        while [ -z "$twrp" ]; do twrp=`sh recovery_manager.sh`; done
+        nameext="_Magisk+TWRP_repack"
       ;;
       "23")
-      while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="_TWRP+DFE_repack"
+        while [ -z "$twrp" ]; do twrp=`sh recovery_manager.sh`; done
+        nameext="_TWRP+DFE_repack"
       ;;
       "2")
-      while [ -z "$twrp" ]; do twrp="$(sh recovery_manager.sh)"; done
-      nameext="_TWRP_only_repack"
+        while [ -z "$twrp" ]; do twrp=`sh recovery_manager.sh`; done
+        nameext="_TWRP_only_repack"
       ;;
       "3")
-      nameext="_DFE_only_repack"
+        nameext="_DFE_only_repack"
       ;;
       "1")
-      magisk_choose_dialog
-      nameext="_Magisk_only_repack"
+        magisk_choose_dialog
+        nameext="_Magisk_only_repack"
       ;;
       "")
-      nameext="_only_repack"
+        nameext="_only_repack"
       ;;
     esac
 }
 
-magisk_recovery_patch(){
-    recovery_patch
-    echo -e "\e[32m Patching kernel with Magisk...\e[0m"
-    [ ! -d ".magisk" ] && cp -rf /data/adb/magisk/ .magisk
-    magiskpath=".magisk"
-    mv -f $OUTFW""boot/boot.img $magiskpath/
-    sh $magiskpath/boot_patch.sh boot.img &> /dev/null
-    rm $magiskpath/boot.img
-    mv $magiskpath/new-boot.img $OUTFW""boot/boot.img
-    rm -rf .magisk
-    echo -e "\e[1;32m Magisk patch is done.\e[0m"
-}
-
 magisk_patch(){
-    echo -e "\e[32m Patching kernel with Magisk...\e[0m"
+    printf "\e[32m%s\e[0m\n" " Patching kernel with Magisk..."
     [ ! -d ".magisk" ] && cp -rf /data/adb/magisk/ .magisk
-    magiskpath=".magisk"
-    ln -n extracted/boot.img $magiskpath/
-    sh $magiskpath/boot_patch.sh boot.img &> /dev/null
-    rm $magiskpath/boot.img
-    mv $magiskpath/new-boot.img $OUTFW""boot/boot.img
+    [[ $mod =~ 2 ]] && mv ${OUTFW}boot/boot.img .magisk || ln -n extracted/boot.img .magisk/
+    sh .magisk/boot_patch.sh boot.img &> /dev/null
+    rm .magisk/boot.img
+    mv .magisk/new-boot.img ${OUTFW}boot/boot.img
     rm -rf .magisk
-    echo -e "\e[1;32m Magisk patch is done.\e[0m"
+    printf "\e[1;32m%s\e[0m\n" " Magisk patch is done"
 }
 
 recovery_patch(){
-    echo -e "\e[32m Patching kernel with TWRP...\e[0m"
+    printf "\e[32m%s\e[0m\n" " Patching kernel with TWRP..."
     [ ! -d ".magisk" ] && cp -rf /data/adb/magisk/ .magisk
     ln -n extracted/boot.img .magisk/
     cd .magisk
@@ -379,126 +325,115 @@ recovery_patch(){
     ./magiskboot cpio ramdisk.cpio sha1 &> /dev/null
     ./magiskboot repack boot.img &> /dev/null
     cd ..
-    mv .magisk/new-boot.img $OUTFW""boot/boot.img
+    mv .magisk/new-boot.img ${OUTFW}boot/boot.img
     .magisk/magiskboot cleanup &> /dev/null
-    echo -e "\e[1;32m Recovery patch is done.\e[0m"
+    printf "\e[1;32m%s\e[0m\n" " Recovery patch is done"
 }
 
 get_image_size(){
-    VENDOR="$(stat -c%s extracted/vendor.img | cut -f1)"
-    SYSTEM="$(stat -c%s extracted/system.img | cut -f1)"
-    SYSTEMEXT="$(stat -c%s extracted/system_ext.img | cut -f1)"
-    PRODUCT="$(stat -c%s extracted/product.img | cut -f1)"
-    if [ ! -z "$(ls extracted | grep odm.img)" ]; then
-        ODM="$(stat -c%s extracted/odm.img | cut -f1)"
-    else
-        ODM=0
-    fi
-    total=`awk 'BEGIN{ print '$VENDOR'+'$SYSTEM'+'$SYSTEMEXT'+'$PRODUCT'+'$ODM' }'`
+    VENDOR=`stat -c%s extracted/vendor.img`
+    SYSTEM=`stat -c%s extracted/system.img`
+    SYSTEMEXT=`stat -c%s extracted/system_ext.img`
+    PRODUCT=`stat -c%s extracted/product.img`
+    [ ! -f extracted/odm.img ] && ODM=`stat -c%s extracted/odm.img`
+    total=`calc $VENDOR+$SYSTEM+$SYSTEMEXT+$PRODUCT+${ODM:=0}`
 }
 
 vendor_patch(){
     tune2fs -f -O ^read-only extracted/vendor.img &> /dev/null
     process_rw extracted/vendor.img &> /dev/null
-    echo -e "\e[1m\e[37m Mounting vendor.img... \e[0m"
+    printf "\e[1m\e[1;37m%s\e[0m\n" " Mounting vendor.img..."
     umount tmp &> /dev/null
-    count=0
-    while [ $count -le 5 ]; do
+    while (( ${count:=0} < 6 )); do
         let "count++"
         mount extracted/vendor.img tmp/ &> /dev/null
-        mountpoint -q tmp/
-        [ "$?" == "0" ] && break
+        ( mountpoint -q tmp/ ) && break
     done
-    mountpoint -q tmp/
-    if [ "$?" == "0" ]; then
-        echo -e "\e[1;32m Vendor image has temporarily been mounted.\e[0m"
+    if ( mountpoint -q tmp/ ); then
+        printf "\e[1;32m%s\e[0m\n" " Vendor image has temporarily been mounted"
         sh dfe.sh tmp/ &> /dev/null
         sh dfe.sh tmp/ 
         sed -i 's/encrypted/unsupported/' tmp/etc/init/hw/init.gourami.rc &> /dev/null
         umount tmp
     else
-        echo -e "\e[1;31m Vendor image could not be mounted. Continuing without DFE patch.\e[0m"
+        printf "\e[1;31m%s\e[0m\n" " Vendor image could not be mounted. Continuing without DFE patch" 1>&2
     fi
-    if [ $rw == 0 ]; then
-        tune2fs -f -O read-only extracted/vendor.img &> /dev/null
-    fi
+    (( rw == 0 )) && tune2fs -f -O read-only extracted/vendor.img &> /dev/null
 }
 
 process_rw(){
-    imgsize=$(wc -c < $1)
-    new_size=$(echo $imgsize | awk '{print ($1 * 1.25) / 512}')
+    imgsize=`stat -c%s $1`
+    new_size=`calc $imgsize*1.25/512`
     resize2fs -f $1 ${new_size}s
-    e2fsck -y -E unshare_blocks $1 &> /dev/null
+    e2fsck -y -E unshare_blocks $1
     resize2fs -f -M $1
     resize2fs -f -M $1
     
-    imgsize=$(wc -c < $1)
-    new_size=$(echo $imgsize | awk '{print int(($1 + 20 * 1024 * 1024) / 512)}')
+    imgsize=`stat -c%s $1`
+    new_size=`calc "($imgsize+20*1024*1024)/512"`
     resize2fs -f $1 ${new_size}s
 }
 
 make_rw(){
-    [ "$rw" == "0" ] && return
-    echo -e "\e[1m\e[37mGiving read and write permissions...\e[0m"
+    (( rw == 0 )) && return
+    printf "\e[1;37m%s\e[0m\n" "Giving read and write permissions..."
     for img in `ls extracted/ | grep .img`; do
-        case "$img" in
+        case $img in
          (system.img|system_ext.img|vendor.img|product.img|odm.img)
-          tune2fs -l extracted/$img | grep -q 'shared_blocks'
-          [ "$?" == 1 ] && continue
-          process_rw extracted/$img &> /dev/null
+             ( tune2fs -l extracted/$img | grep -q 'shared_blocks' ) && continue
+             process_rw extracted/$img &> /dev/null
          esac
     done
 }
 
 multi_process(){
-    img2simg extracted/$file $OUT""$file 4096
-    img2sdat $OUT""$file -v4 -o $OUT -p ${file%.*} 
-    rm $OUT""$file && \
-    [ $comp_level -gt 0 ] && \
-        brotli -$comp_level -j $OUT""${file%.*}.new.dat
+    img2simg extracted/$file ${OUT}$file 4096
+    img2sdat ${OUT}$file -v4 -o $OUT -p ${file%.*} 
+    rm ${OUT}$file && \
+    (( $comp_level > 0 )) && \
+        brotli -$comp_level -j ${OUT}${file%.*}.new.dat
 }
 
 img_to_sparse(){
-    echo
-    echo -e "\e[1;32m Converting images in background\e[0m" 
-    empty_space=`awk 'BEGIN{ print 8988393472-'$total' }'`
-    for file in $(ls -1 extracted | grep .img)
+    printf "\n\e[1;32m%s\e[0m\n" " Converting images in background"
+    empty_space=`calc 8988393472-$total`
+    for file in `ls -1 extracted | grep .img`
     do
-        if ! case "$file" in (system.img|product.img|system_ext.img|odm.img|vendor.img) false; esac; then
-            if [ `awk 'BEGIN{print int('$SYSTEM'/1024/1024)}'` -lt 4000 ]; then
-                if [ "$file" == "odm.img" ]; then
-                    multi_process &> /dev/null &
-                    continue
-                elif [ "$file" == "system.img" ]; then
-                    new_size=$(echo $SYSTEM+$empty_space/2 | bc)
-                else
-                    new_size=$(echo `du -sb extracted/$file|cut -f1`+$empty_space/2/3 | bc)
-                fi
-                fallocate -l $new_size extracted/$file
-                resize2fs -f extracted/$file &> /dev/null
-            fi
-            multi_process &> /dev/null &
-            continue
-        fi
-        if ! case "$file" in (vendor_boot.img|dtbo.img) false; esac; then
-            if [ "$ROMTYPE" == "1" ]; then 
-                ln extracted/$file $OUTFW"boot/"
-                continue
-            else
-                ln extracted/$file $OUT"boot/"
-                continue
-            fi
-        fi
-        if [ $file == "boot.img" ]; then
-            continue
-        fi
-        ln -n extracted/$file $OUTFW"firmware-update/"
+        case $file in 
+          system.img|product.img|system_ext.img|odm.img|vendor.img)
+              if (( SYSTEM < 4194304000 )); then
+                  case $file in 
+                    odm.img)
+                        multi_process &> /dev/null &
+                        continue
+                    ;;
+                    system.img)
+                        new_size=`calc $SYSTEM+$empty_space/2`
+                    ;;
+                    *)
+                        new_size=`calc $(stat -c%s extracted/$file)+$empty_space/2/3`
+                    ;; esac
+                  fallocate -l $new_size extracted/$file
+                  resize2fs -f extracted/$file &> /dev/null
+              fi
+              multi_process &> /dev/null &
+              continue
+            ;;
+          vendor_boot.img|dtbo.img)
+              (( ROMTYPE == 1 )) && ln extracted/$file $OUTFW"boot/" && continue || ln extracted/$file $OUT"boot/" || continue
+          ;;
+          boot.img)
+              continue
+          ;;
+          *)
+              ln -n extracted/$file $OUTFW"firmware-update/"
+        esac
     done
-    echo
+    printf "%s\n"
 }
 
 create_zip_structure(){
-    [ -z "$name" ] && name="UnnamedRom"
+    [ "$name" == "None" ] && name="UnnamedRom"
     echo -e "ui_print(\"*****************************\");\n" \
                  "ui_print(\" - $name by AutoRepack\");\n" \
                  "ui_print(\"*****************************\");\n\n" \
@@ -508,14 +443,15 @@ create_zip_structure(){
                  "run_program(\"/sbin/busybox\", \"umount\", \"/odm\");\n" \
                  "run_program(\"/sbin/busybox\", \"umount\", \"/vendor\");\n" \
                  "ui_print(\"Flashing partition images...\");\n" | sed 's/^ *//g' >> $fw_updater_path/updater-script
-    for fw in $(ls $OUTFW""firmware-update/ $OUTFW""boot/ | grep .img); do
-        if ! case "$fw" in (boot.img|vendor_boot.img|dtbo.img) false; esac; then
+    for fw in `ls ${OUTFW}firmware-update/ ${OUTFW}boot/ | grep .img`; do
+        case $fw in boot.img|vendor_boot.img|dtbo.img)
             root="boot"
-        else
+        ;;
+        *)
             root="firmware-update"
-        fi
-        echo -e "package_extract_file(\"$root/$fw\", \"/dev/block/bootdevice/by-name/$(basename $fw .img)_a\");" >> $fw_updater_path/updater-script
-        echo -e "package_extract_file(\"$root/$fw\", \"/dev/block/bootdevice/by-name/$(basename $fw .img)_b\");\n" >> $fw_updater_path/updater-script
+        ;; esac
+        echo -e "package_extract_file(\"$root/$fw\", \"/dev/block/bootdevice/by-name/${fw%%.img}_a\");" >> $fw_updater_path/updater-script
+        echo -e "package_extract_file(\"$root/$fw\", \"/dev/block/bootdevice/by-name/${fw%%.img}_b\");\n" >> $fw_updater_path/updater-script
     done
     case $ROMTYPE in 
      1)
@@ -541,16 +477,16 @@ create_zip_structure(){
     esac
     ln -n bin/aarch64-linux-gnu/update-binary $rom_updater_path
     echo -e "assert(update_dynamic_partitions(package_extract_file(\"dynamic_partitions_op_list\")));\n" >> $rom_updater_path/updater-script
-    for partition in $(ls $OUT | grep .new.dat); do
-        echo -e "ui_print(\"Flashing $(echo $partition | cut -d. -f1)_a partition...\");\n" \
+    for partition in `ls $OUT | grep .new.dat`; do
+        echo -e "ui_print(\"Flashing ${partition%%.*}_a partition...\");\n" \
         "show_progress(0.100000, 0);\n" \
-        "block_image_update(map_partition(\"$(echo $partition | cut -d. -f1)_a\"), package_extract_file(\"$(echo $partition | cut -d. -f1).transfer.list\"), \"$partition\", \"$(echo $partition | cut -d. -f1).patch.dat\") ||" \
-        "abort(\"E2001: Failed to flash $(echo $partition | cut -d. -f1)_a partition.\");\n" | sed 's/^ *//g' >> $rom_updater_path/updater-script
+        "block_image_update(map_partition(\"${partition%%.*}_a\"), package_extract_file(\"${partition%%.*}.transfer.list\"), \"$partition\", \"${partition%%.*}.patch.dat\") ||" \
+        "abort(\"E2001: Failed to flash ${partition%%.*}_a partition.\");\n" | sed 's/^ *//g' >> $rom_updater_path/updater-script
     done
     echo -e "\nshow_progress(0.100000, 10);\n" \
              "run_program(\"/system/bin/bootctl\", \"set-active-boot-slot\", \"0\");\n" \
              "set_progress(1.000000);" | sed 's/^ *//g' >> $rom_updater_path/updater-script
-    echo
+    printf "%s\n"
     echo -e "\e[1m\e[37mAdding img sizes in dynamic partition list...\e[0m"
     echo -e "remove_all_groups\n" \
           "add_group qti_dynamic_partitions_a 9122611200\n" \
@@ -586,35 +522,27 @@ create_zip_structure(){
 }
 
 final_act(){
-    echo
-    echo -e "\e[32m Waiting for image processes to be done\e[0m"
+    printf "\n\e[32m%s\e[0m\n" " Waiting for image processes to be done"
     wait
     create_zip_structure
-    echo
-    echo -e "\e[32m -------------------------------------------------------\e[0m"
-    echo -e "\e[32m            Creating flashable repack rom.\e[0m"
-    echo -e "\e[32m -------------------------------------------------------\e[0m"
-    echo
-    if [ $ROMTYPE == "1" ]; then
-        echo
-        echo -e "\e[1m\e[37mPacking MIUI firmware files...\e[0m"
-        echo
+    printf "\n\e[32m%s\e[0m\n" " -------------------------------------------------------"
+    printf "\e[32m%s\e[0m\n" "            Creating flashable repack rom"
+    printf "\e[32m%s\e[0m\n\n" " -------------------------------------------------------"
+    if (( ROMTYPE == 1 )); then
+        printf "\n\e[1m\e[37m%s\e[0m\n\n" "Packing firmware files..."
         cd output/MIUI/fw
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext"-Step2.zip * -bso0
-        echo
-        echo -e "\e[1m\e[37mPacking MIUI rom files...\e[0m"
-        echo
+        printf "\n\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
         cd ../rom
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext"-Step1.zip * -bso0
     else
-        echo -e "\e[1m\e[37mPacking rom files...\e[0m"
-        echo
+        printf "\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
         cd $OUT
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext".zip * -bso0
     fi
     cd $HOME
     sh cleanup.sh &> /dev/null
-    echo -e "\e[1;32mYour repacked rom is ready to flash. You can find it in /sdcard/Repacks/ \e[0m"
+    printf "\e[1;32m%s\e[0m\n\n" "Your repacked rom is ready to flash. You can find it in /sdcard/Repacks/"
     exit
 }
 
