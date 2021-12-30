@@ -335,7 +335,7 @@ get_image_size(){
     SYSTEM=`stat -c%s extracted/system.img`
     SYSTEMEXT=`stat -c%s extracted/system_ext.img`
     PRODUCT=`stat -c%s extracted/product.img`
-    [ ! -f extracted/odm.img ] && ODM=`stat -c%s extracted/odm.img`
+    [ -f extracted/odm.img ] && ODM=`stat -c%s extracted/odm.img`
     total=`calc $VENDOR+$SYSTEM+$SYSTEMEXT+$PRODUCT+${ODM:=0}`
 }
 
