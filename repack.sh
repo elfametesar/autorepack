@@ -1,4 +1,4 @@
-#!$PREFIX/bin/bash
+#!/data/local/autorepack/bin/bash
 
 export PATH=$PWD/bin:$PATH
 export LC_ALL=C
