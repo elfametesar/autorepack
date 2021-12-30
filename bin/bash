@@ -1,2 +1,2 @@
 #This is just a wrapper
-$PREFIX/bin/bash
+$PREFIX/bin/bash $@
