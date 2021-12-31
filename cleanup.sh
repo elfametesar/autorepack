@@ -1,1 +1,1 @@
-rm -rf extracted/* output tmp/* .conf
+rm -rf .magisk extracted/* output tmp/* .conf
