@@ -41,7 +41,7 @@ integrity_check(){
 workspace_setup(){
     [ ! -f ".conf" ] && menu
     [ ! -f ".conf" ] && exit
-    read -d "\n" file name ROMTYPE fw rw comp_level mm magisk addons <<< `sed 's/[][]//g; s/ /\\ /g' .conf`
+    read -d "\n" file name ROMTYPE fw rw comp_level mm magisk addons <<< `sed 's/[][]//g' .conf`
     ((mm == 0)) && unset magisk
     case $ROMTYPE in
       "0")
