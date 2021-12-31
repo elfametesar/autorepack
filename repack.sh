@@ -277,7 +277,7 @@ img_to_sparse(){
               if (( SYSTEM < 4194304000 )); then
                   case ${file##*/} in 
                     odm.img)
-                        multi_process_sparse &> /dev/null &
+                        multi_process_sparse ${file##*/} &> /dev/null &
                         continue
                     ;;
                     system.img)
@@ -289,7 +289,7 @@ img_to_sparse(){
                   fallocate -l $new_size $file
                   resize2fs -f $file &> /dev/null
               fi
-              multi_process_sparse &> /dev/null &
+              multi_process_sparse ${file##*/} &> /dev/null &
               continue
             ;;
           vendor_boot.img|dtbo.img)
