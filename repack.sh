@@ -41,7 +41,7 @@ integrity_check(){
 workspace_setup(){
     [ ! -f ".conf" ] && menu
     [ ! -f ".conf" ] && exit
-    IFS=":" read file name mode fw rw comp_level mm magisk addons <<< `sed ':a;N;$!ba; s/[][]//g; s/\n/:/g' .conf`
+    IFS="|" read file name mode fw rw comp_level mm magisk addons <<< `awk -F ':' 'ORS="|" {print $2}' .conf`
     ((mm == 0)) && unset magisk
     case $mode in
       "0")
