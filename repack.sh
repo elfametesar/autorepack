@@ -7,7 +7,7 @@ export TERMINFO=$PREFIX/share/terminfo/
 mkdir -p /sdcard/Repacks
 HOME=$PWD
 
-trap "jobs -p | xargs -n 1 kill -9 &> /dev/null" EXIT
+trap "jobs -p | xargs -n 1 kill -9 &> /dev/null; exit" EXIT INT
 
 calc(){ awk 'BEGIN{ print int('$1') }'; }
 
@@ -41,19 +41,18 @@ integrity_check(){
 workspace_setup(){
     [ ! -f ".conf" ] && menu
     [ ! -f ".conf" ] && exit
-    read -d "\n" file name ROMTYPE fw rw comp_level mm magisk addons <<< `sed 's/[][]//g' .conf`
+    IFS=":" read file name mode fw rw comp_level mm magisk addons <<< `sed ':a;N;$!ba; s/[][]//g; s/\n/:/g' .conf`
     ((mm == 0)) && unset magisk
-    case $ROMTYPE in
+    case $mode in
       "0")
         OUT="./output/ModeOne/"
         OUTFW="./output/ModeOne/"
         mkdir -p $OUT
     ;;
      "1")
-        OUT="./output/Mode2/rom/"
-        OUTFW="./output/Mode2/fw/"
+        OUT="./output/ModeTwo/rom/"
+        OUTFW="./output/ModeTwo/fw/"
         mkdir -p $OUT $OUTFW
-        comp_level=3
     ;;
     esac
     rom_updater_path="${OUT}META-INF/com/google/android"
@@ -294,7 +293,7 @@ img_to_sparse(){
               continue
             ;;
           vendor_boot.img|dtbo.img)
-              (( ROMTYPE == 1 )) && ln $file ${OUTFW}boot/ && continue || \
+              (( mode == 1 )) && ln $file ${OUTFW}boot/ && continue || \
                                          ln $file ${OUT}boot/ || continue
           ;;
           boot.img)
@@ -339,7 +338,7 @@ EOF
 EOF
 `
     }
-    case $ROMTYPE in 
+    case $mode in 
      1)
         mv ${OUT}vendor* $OUTFW
         cat <<EOF | sed 's/^ *//g; s/^$/ /' > $fw_updater_path/updater-script
@@ -401,7 +400,7 @@ EOF
              resize system_ext_a $SYSTEMEXT
              resize product_a $PRODUCT
 EOF
-    case $ROMTYPE in
+    case $mode in
      1)
       cat <<EOF | sed 's/^ *//g' >> ${OUTFW}dynamic_partitions_op_list
              remove vendor_a
@@ -425,7 +424,7 @@ create_flashable(){
     printf "\n\e[32m%s\e[0m\n" " -------------------------------------------------------"
     printf "\e[32m%s\e[0m\n" "            Creating flashable repack rom"
     printf "\e[32m%s\e[0m\n\n" " -------------------------------------------------------"
-    if (( ROMTYPE == 1 )); then
+    if (( mode == 1 )); then
         printf "\n\e[1m\e[37m%s\e[0m\n\n" "Packing firmware files..."
         cd $OUTFW
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext"-Step2.zip * -bso0
