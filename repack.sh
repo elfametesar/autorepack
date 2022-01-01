@@ -123,10 +123,9 @@ file_extractor(){
     case $file in
      *.tgz)
         printf "\e[37m%s\e[0m\n" "Retrieving information from archive..."
-        7za e -so "$file" -mmt8 | 7za e -si -ttar "*.img" -r -mmt8 -otmp/ &> /dev/null &
-        successbar tmp "Fastboot Image Extraction"\
-                           `7za e -so "$file" -mmt8 | 7za l -si -ttar "*.img" -r -mmt8 | \
-                           awk 'END{ print $4 }'`
+        7za e "$file" -y -mmt8 -bso0 -bsp0 -o. && size=`7za l "$(basename ${file%.tgz}.tar /)" -ttar "*.img" -r -mmt8 | awk 'END{ print $4 }'`
+        7za e "`basename ${file%.tgz}.tar /`" -y -bso0 -bsp0 -sdel -ttar "*.img" -r -mmt8 -otmp/ &
+        successbar tmp "Fastboot Image Extraction" $size
         fastboot_extract
      ;;
      *.7z|*.zip|*.bin)
