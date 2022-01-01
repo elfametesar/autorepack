@@ -88,10 +88,15 @@ successbar(){
 payload_extract(){
     paydump -c 8 -o extracted/ "$file" &> /dev/null &
     successbar extracted "Payload Image Extraction" `paydump -l $file | tail -1`
+    firmware_extract
+}
+
+firmware_extract(){
+    rm -rf tmp/*
     if [ ! "$fw" == "None" ]; then
-        if ( 7za l "$fw" *.img -r | grep -q .img ); then
+        if ( 7za l "$fw" "*.img" -r | grep -q .img ); then
             7za e -otmp/ "$fw" "*.img" -r -y &> /dev/null &
-            successbar "tmp/" "Firmware Extraction" `7za l "$fw" "*.img" -r | awk 'END{ print $3 }'`
+            successbar tmp/ "Firmware Extraction" `7za l "$fw" "*.img" -r | awk 'END{ print $3 }'`
         fi
         mv tmp/* extracted/
     fi
@@ -109,15 +114,9 @@ fastboot_extract(){
     lpunpack --slot=0 extracted/super.img extracted/
     rm extracted/super.img
     for file in extracted/*_a.img; { mv $file ${file%%_a.img}.img; }
-    rm -rf tmp/* extracted/*_b.img extracted/rescue.img extracted/userdata.img extracted/dummy.img\
+    rm -rf extracted/*_b.img extracted/rescue.img extracted/userdata.img extracted/dummy.img\
            extracted/persist.img extracted/metadata.img extracted/metadata.img
-    if [ ! "$fw" == "None" ]; then
-        if ( 7za l "$fw" "*.img" -r | grep -q .img ); then
-            7za e -otmp/ "$fw" "*.img" -r -y &> /dev/null &
-            successbar tmp "Firmware Extraction" `7za l "$fw" "*.img" -r | awk 'END{ print $3 }'`
-        fi
-        mv tmp/* extracted/
-    fi
+    firmware_extract
 }
 
 file_extractor(){
@@ -342,6 +341,7 @@ EOF
             assert(update_dynamic_partitions(package_extract_file("dynamic_partitions_op_list")));
 
             ui_print("Flashing vendor_a partition...");
+            show_progress(0.100000, 0); 
             block_image_update(map_partition("vendor_a"), package_extract_file("vendor.transfer.list"), "vendor.new.dat.br", "vendor.patch.dat") || abort("E2001: Failed to flash vendor_a partition.");
 
             show_progress(0.100000, 10);
@@ -375,7 +375,7 @@ EOF
 EOF
     echo
 
-    printf "\e[1m\e[37m%s\e[0m\n" " Adding img sizes in dynamic partition list..."
+    printf "\e[1m\e[37m%s\e[0m\n" " Creating dynamic partition list..."
 
     cat <<EOF | sed 's/^ *//g' >> ${OUT}dynamic_partitions_op_list
              remove_all_groups
