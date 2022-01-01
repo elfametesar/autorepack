@@ -204,11 +204,11 @@ patch_recovery(){
 patch_vendor(){
     [[ "$addons" =~ DFE ]] || return
     tune2fs -f -O ^read-only extracted/vendor.img &> /dev/null
-    process_rw extracted/vendor.img &> /dev/null
+    multi_process_rw extracted/vendor.img &> /dev/null
     printf "\e[1m\e[1;37m%s\e[0m\n" " Mounting vendor.img..."
-    umount tmp &> /dev/null
+    ( mountpoint -q tmp ) && umount tmp
     while (( ${count:=0} < 6 )); do
-        let "count++"
+        (( count++ ))
         mount extracted/vendor.img tmp/ &> /dev/null
         ( mountpoint -q tmp/ ) && break
     done
@@ -272,35 +272,30 @@ img_to_sparse(){
     printf "\n\e[1;32m%s\e[0m\n" " Converting images in background"
     empty_space=`calc 8988393472-$total`
     for file in extracted/*.img; {
-        case ${file##*/} in 
-          system.img|product.img|system_ext.img|odm.img|vendor.img)
-              if (( SYSTEM < 4194304000 )); then
-                  case ${file##*/} in 
-                    odm.img)
-                        multi_process_sparse $file &> /dev/null &
-                        continue
-                    ;;
-                    system.img)
-                        new_size=`calc $SYSTEM+$empty_space/2`
-                    ;;
-                    *)
-                        new_size=`calc $(stat -c%s $file)+$empty_space/2/3`
-                    ;; esac
-                  fallocate -l $new_size $file
-                  resize2fs -f $file &> /dev/null
-              fi
-              multi_process_sparse $file &> /dev/null &
-              continue
+        case ${file##*/} in system.img|product.img|system_ext.img|odm.img|vendor.img)
+            (( SYSTEM > 4194304000 )) && coproc multi_process_sparse $file &> /dev/null && continue
+            case ${file##*/} in odm.img)
+                multi_process_sparse $file &> /dev/null &
+                continue
             ;;
-          vendor_boot.img|dtbo.img)
-              (( mode == 1 )) && ln $file ${OUTFW}boot/ && continue || \
+            system.img)
+                new_size=`calc $SYSTEM+$empty_space/2`
+            ;;
+            *)
+                new_size=`calc $(stat -c%s $file)+$empty_space/2/3`
+            esac
+            fallocate -l $new_size $file
+            resize2fs -f $file &> /dev/null
+        ;;
+        vendor_boot.img|dtbo.img)
+            (( mode == 1 )) && ln $file ${OUTFW}boot/ && continue || \
                                          ln $file ${OUT}boot/ || continue
-          ;;
-          boot.img)
-              continue
-          ;;
-          *)
-              ln -n $file ${OUTFW}firmware-update/
+        ;;
+        boot.img)
+            continue
+        ;;
+        *)
+            ln -n $file ${OUTFW}firmware-update/
         esac
     }
     echo
