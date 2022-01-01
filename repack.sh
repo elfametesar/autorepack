@@ -285,6 +285,7 @@ img_to_sparse(){
             esac
             fallocate -l $new_size $file
             resize2fs -f $file &> /dev/null
+            multi_process_sparse $file &> /dev/null
         ;;
         vendor_boot.img|dtbo.img)
             (( mode == 1 )) && ln $file ${OUTFW}boot/ && continue || \
@@ -432,7 +433,7 @@ create_flashable(){
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext".zip * -bso0
     fi
     cd $HOME
-    cleanup --deep
+    #cleanup --deep
     printf "\e[1;32m%s\e[0m\n\n" "Your repacked rom is ready to flash. You can find it in /sdcard/Repacks/"
     exit
 }
