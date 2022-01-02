@@ -387,11 +387,7 @@ EOF
              resize product_a $PRODUCT
              resize vendor_a $VENDOR
 EOF
-    (( $mode == 1 )) && {
-        cat <<EOF | sed 's/^ *//g' >> ${OUT}dynamic_partitions_op_list
-             resize system_a $SYSTEM
-EOF
-    }
+    echo "resize system_a $SYSTEM" >> ${OUT}dynamic_partitions_op_list
     [ -f extracted/odm.img ] && echo "resize odm_a $ODM" >> ${OUTFW}dynamic_partitions_op_list
 }
 
