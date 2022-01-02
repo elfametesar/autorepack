@@ -62,11 +62,11 @@ workspace_setup(){
     fw_updater_path="${OUTFW}META-INF/com/google/android"
     mkdir -p ${OUTFW}boot $rom_updater_path
     mkdir -p $fw_updater_path ${OUTFW}firmware-update ${OUTFW}boot
-    ( grep -q 'Magisk' <<< $addons ) && custom_magisk && nameext+="+Magisk"
-    ( grep -q 'Recovery' <<< $addons ) && nameext+="+Recovery" \
+    ( grep -q 'Magisk' <<< $addons ) && custom_magisk && name+="+Magisk"
+    ( grep -q 'Recovery' <<< $addons ) && name+="+Recovery" \
         && while [ -z "$twrp" ]; do twrp=`sh recovery_manager.sh`; done
-    ( grep -q 'DFE' <<< $addons ) && nameext+="+DFE"
-    nameext+="_repack"
+    ( grep -q 'DFE' <<< $addons ) && name+="+DFE"
+    name+="_repack"
 }
 
 successbar(){
@@ -252,7 +252,7 @@ multi_process_sparse(){
     img2simg extracted/$file ${OUT}$file 4096
     img2sdat ${OUT}$file -v4 -o $OUT -p ${file%.*} 
     rm ${OUT}$file && \
-    (( $comp_level > 0 )) && \
+    [ $file == "system.img" ] && (( $comp_level > 0 )) && \
         brotli -$comp_level -j ${OUT}${file%.*}.new.dat
 }
 
@@ -341,9 +341,9 @@ EOF
     }
     case $mode in 
      1)
-        fw_lines+=`sed -n '/. *Flashing vendor_a.*/{xNNN;p}' <<< $partition_lines`
-        partition_lines=`sed -n '/. *Flashing vendor_a.*/{NNN;d}p' <<< $partition_lines`
-        mv ${OUT}vendor* $OUTFW
+        fw_lines+=`sed -n '/. *Flashing system_a.*/{xNNN;d}p' <<< $partition_lines`
+        partition_lines=`sed -n '/. *Flashing system_a.*/{NNN;p}' <<< $partition_lines`
+        mv ${OUT}{vendor*,odm*,product*,system_ext*} $OUTFW
         cat <<EOF | sed 's/^ *//g; s/^$/ /' > $fw_updater_path/updater-script
             $header
             assert(update_dynamic_partitions(package_extract_file("dynamic_partitions_op_list")));
@@ -369,7 +369,7 @@ EOF
              set_progress(1.000000);
 EOF
     printf "\n\n\e[1m\e[37m%s\e[0m\n\n" " Creating dynamic partition list..."
-    cat <<EOF | sed 's/^ *//g' >> ${OUT}dynamic_partitions_op_list
+    cat <<EOF | sed 's/^ *//g' >> ${OUTFW}dynamic_partitions_op_list
              remove_all_groups
              add_group qti_dynamic_partitions_a 9122611200
              add_group qti_dynamic_partitions_b 9122611200
@@ -383,25 +383,16 @@ EOF
              add vendor_b qti_dynamic_partitions_b
              add odm_a qti_dynamic_partitions_a
              add odm_b qti_dynamic_partitions_b
-             resize system_a $SYSTEM
              resize system_ext_a $SYSTEMEXT
              resize product_a $PRODUCT
-EOF
-    case $mode in
-     1)
-      cat <<EOF | sed 's/^ *//g' >> ${OUTFW}dynamic_partitions_op_list
-             remove vendor_a
-             remove vendor_b
-             add vendor_a qti_dynamic_partitions_a
-             add vendor_b qti_dynamic_partitions_b
              resize vendor_a $VENDOR
 EOF
-     ;;
-     0)
-      echo "resize vendor_a $VENDOR" >> ${OUT}dynamic_partitions_op_list
-     ;;
-    esac
-    [ -f extracted/odm.img ] && echo "resize odm_a $ODM" >> ${OUT}dynamic_partitions_op_list
+    (( $mode == 1 )) && {
+        cat <<EOF | sed 's/^ *//g' >> ${OUT}dynamic_partitions_op_list
+             resize system_a $SYSTEM
+EOF
+    }
+    [ -f extracted/odm.img ] && echo "resize odm_a $ODM" >> ${OUTFW}dynamic_partitions_op_list
 }
 
 create_flashable(){
@@ -414,15 +405,15 @@ create_flashable(){
     (( mode == 1 )) && {
         printf "\n\n\e[1m\e[37m%s\e[0m\n\n\n" "Packing firmware files..."
         cd $OUTFW
-        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext"-Step2.zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name"-Step1.zip * -bso0
         printf "\n\n\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
         cd ../rom
-        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext"-Step1.zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name"-Step2.zip * -bso0
     } ||
     {
         printf "\n\n\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
         cd $OUT
-        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext".zip * -bso0
+        7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name".zip * -bso0
     }
     cd $HOME
     cleanup --deep
