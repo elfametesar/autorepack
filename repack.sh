@@ -28,14 +28,15 @@ integrity_check(){
            ((headcount++))
         esac
     }
-    if ((headcount != 6)); then
+    ((headcount != 6)) && {
         dialog --stdout --title "Integrity Check" --msgbox "There are some useless leftover .img files in the workspace. They will be cleaned up." 6 50
         cleanup --deep
         main
-    else
+    } ||
+    {
         dialog --stdout --yesno "You already have some extracted img files in workspace. Do you want to continue with them?" 6 50
         (($? == 0)) && cleanup --soft && main dirty || cleanup --deep && main
-    fi
+    }
 }
 
 workspace_setup(){
@@ -93,22 +94,22 @@ payload_extract(){
 
 firmware_extract(){
     rm -rf tmp/*
-    if [ ! "$fw" == "None" ]; then
-        if ( 7za l "$fw" "*.img" -r | grep -q .img ); then
+    [ ! "$fw" == "None" ] && {
+        ( 7za l "$fw" "*.img" -r | grep -q .img ) && {
             7za e -otmp/ "$fw" "*.img" -r -y &> /dev/null &
             successbar tmp/ "Firmware Extraction" `7za l "$fw" "*.img" -r | awk 'END{ print $3 }'`
-        fi
+        }
         mv tmp/* extracted/
-    fi
+    }
 }
 
 fastboot_extract(){
     echo
-    if ( file tmp/super.img | grep -q sparse ); then
+    ( file tmp/super.img | grep -q sparse ) && {
         printf "\e[37m%s\e[0m\n" "Converting super.img to raw..."
         simg2img tmp/super.img extracted/super.img
         rm tmp/super.img
-    fi
+    }
     [ -z "`ls tmp | grep .img`" ] || mv tmp/*.img extracted/
     printf "\e[37m%s\e[0m\n" "Unpacking super..."
     lpunpack --slot=0 extracted/super.img extracted/
@@ -131,19 +132,20 @@ file_extractor(){
      *.7z|*.zip|*.bin)
         [[ "$file" == *.bin ]] && payload_extract && return
         content=`7za l "$file" payload.bin super.img -r`
-        if ( grep -q payload.bin <<< $content ); then
+        ( grep -q payload.bin <<< $content ) && {
             7za e -otmp/ "$file" payload.bin -y -mmt8 &> /dev/null &
             successbar tmp "Payload.bin Extraction" \
                               `7za l "$file" payload.bin | awk 'END{ print $4 }'`
             file=tmp/payload.bin
             payload_extract
             rm -rf tmp/*
-        elif( grep -q "$super.img$" <<< $content ); then
+        }
+        ( grep -q "$super.img$" <<< $content ) && {
             7za e "$file" -otmp/ "*.img" -y -r -mmt8 &> /dev/null &
             successbar tmp "Fastboot Image Extraction" \
                     `7za l "$file" "*.img" -r | grep "files" | awk '{ print $3 }'`
             fastboot_extract
-        fi
+        }
      ;;
      ''|*)
         printf "\e[1;31m%s\e[0m\n" "You did not choose a valid file" 1>&2
@@ -202,7 +204,7 @@ patch_recovery(){
 patch_vendor(){
     [[ "$addons" =~ DFE ]] || return
     tune2fs -f -O ^read-only extracted/vendor.img &> /dev/null
-    multi_process_rw extracted/vendor.img &> /dev/null
+    (( rw == 0 )) && multi_process_rw extracted/vendor.img &> /dev/null
     printf "\e[1m\e[1;37m%s\e[0m\n" " Mounting vendor.img..."
     ( mountpoint -q tmp ) && umount tmp
     while (( ${count:=0} < 6 )); do
@@ -210,15 +212,15 @@ patch_vendor(){
         mount extracted/vendor.img tmp/ &> /dev/null
         ( mountpoint -q tmp/ ) && break
     done
-    if ( mountpoint -q tmp/ ); then
+    ( mountpoint -q tmp/ ) && {
         printf "\e[1;32m%s\e[0m\n" " Vendor image has temporarily been mounted"
-        sh dfe.sh tmp/ &> /dev/null
         sh dfe.sh tmp/ 
         sed -i 's/encrypted/unsupported/' tmp/etc/init/hw/init.gourami.rc &> /dev/null
         umount tmp
-    else
+    } ||
+    {
         printf "\e[1;31m%s\e[0m\n" " Vendor image could not be mounted. Continuing without DFE patch" 1>&2
-    fi
+    }
     (( rw == 0 )) && tune2fs -f -O read-only extracted/vendor.img &> /dev/null
 }
 
@@ -271,7 +273,7 @@ img_to_sparse(){
     empty_space=`calc 8988393472-$total`
     for file in extracted/*.img; {
         case ${file##*/} in system.img|product.img|system_ext.img|odm.img|vendor.img)
-            (( SYSTEM > 4194304000 )) && coproc multi_process_sparse $file &> /dev/null && continue
+            (( SYSTEM > 4694304000 )) && { multi_process_sparse $file &> /dev/null & continue; }
             case ${file##*/} in odm.img)
                 multi_process_sparse $file &> /dev/null &
                 continue
@@ -284,7 +286,7 @@ img_to_sparse(){
             esac
             fallocate -l $new_size $file
             resize2fs -f $file &> /dev/null
-            multi_process_sparse $file &> /dev/null
+            multi_process_sparse $file &> /dev/null &
         ;;
         vendor_boot.img|dtbo.img)
             (( mode == 1 )) && ln $file ${OUTFW}boot/ && continue || \
@@ -316,6 +318,18 @@ create_zip_structure(){
                   ui_print("Flashing partition images..."); 
 EOF
 `
+    for partition in ${OUT}*.new.dat*; {
+        partition=${partition##*/}
+        partition_lines+=`cat <<EOF | sed 's/^ *//g; s/^$/ /'
+
+        ui_print("Flashing ${partition%%.*}_a partition..."); 
+        show_progress(0.100000, 0); 
+        block_image_update(map_partition("${partition%%.*}_a"), package_extract_file("${partition%%.*}.transfer.list"), "$partition", "${partition%%.*}.patch.dat") || abort("E2001: Failed to flash ${partition%%.*}_a partition.");
+
+EOF
+
+`
+    }
     for fw in ${OUTFW}firmware-update/* ${OUTFW}boot/*; {
         fw=${fw##*/}
         case $fw in boot.img|vendor_boot.img|dtbo.img)
@@ -334,16 +348,13 @@ EOF
     }
     case $mode in 
      1)
+        fw_lines+=`sed -n '/. *Flashing vendor_a.*/{xNNN;p}' <<< $partition_lines`
+        partition_lines=`sed -n '/. *Flashing vendor_a.*/{NNN;d}p' <<< $partition_lines`
         mv ${OUT}vendor* $OUTFW
         cat <<EOF | sed 's/^ *//g; s/^$/ /' > $fw_updater_path/updater-script
             $header
-            $fw_lines
             assert(update_dynamic_partitions(package_extract_file("dynamic_partitions_op_list")));
-
-            ui_print("Flashing vendor_a partition...");
-            show_progress(0.100000, 0); 
-            block_image_update(map_partition("vendor_a"), package_extract_file("vendor.transfer.list"), "vendor.new.dat.br", "vendor.patch.dat") || abort("E2001: Failed to flash vendor_a partition.");
-
+            $fw_lines
             show_progress(0.100000, 10);
             run_program("/system/bin/bootctl", "set-active-boot-slot", "0");
             set_progress(1.000000);
@@ -357,24 +368,14 @@ EOF
         $header
         $fw_lines
         assert(update_dynamic_partitions(package_extract_file("dynamic_partitions_op_list")));
- 
+        $partition_lines
 EOF
-    for partition in ${OUT}*.new.dat; {
-        partition=${partition##*/}
-        cat <<EOF | sed 's/^ *//g; s/^$/ /' >> $rom_updater_path/updater-script
-        ui_print("Flashing ${partition%%.*}_a partition..."); 
-        show_progress(0.100000, 0); 
-        block_image_update(map_partition("${partition%%.*}_a"), package_extract_file("${partition%%.*}.transfer.list"), "$partition", "${partition%%.*}.patch.dat") || abort("E2001: Failed to flash ${partition%%.*}_a partition.");
-
-EOF
-    }
     cat <<EOF | sed 's/^ *//g' >> $rom_updater_path/updater-script
              show_progress(0.100000, 10); 
              run_program("/system/bin/bootctl", "set-active-boot-slot", "0"); 
              set_progress(1.000000);
 EOF
     echo
-
     printf "\e[1m\e[37m%s\e[0m\n" " Creating dynamic partition list..."
 
     cat <<EOF | sed 's/^ *//g' >> ${OUT}dynamic_partitions_op_list
@@ -414,23 +415,24 @@ EOF
 
 create_flashable(){
     printf "\n\e[32m%s\e[0m\n" " Waiting for image processes to be done"
-    wait
+    wait 
     create_zip_structure
     printf "\n\e[32m%s\e[0m\n" " -------------------------------------------------------"
     printf "\e[32m%s\e[0m\n" "            Creating flashable repack rom"
     printf "\e[32m%s\e[0m\n\n" " -------------------------------------------------------"
-    if (( mode == 1 )); then
+    (( mode == 1 )) && {
         printf "\n\e[1m\e[37m%s\e[0m\n\n" "Packing firmware files..."
         cd $OUTFW
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext"-Step2.zip * -bso0
         printf "\n\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
         cd ../rom
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext"-Step1.zip * -bso0
-    else
+    } ||
+    {
         printf "\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
         cd $OUT
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name""$nameext".zip * -bso0
-    fi
+    }
     cd $HOME
     cleanup --deep
     printf "\e[1;32m%s\e[0m\n\n" "Your repacked rom is ready to flash. You can find it in /sdcard/Repacks/"
