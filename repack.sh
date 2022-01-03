@@ -7,9 +7,9 @@ export TERMINFO=$PREFIX/share/terminfo/
 mkdir -p /sdcard/Repacks
 HOME=$PWD
 
-trap 'kill -9 $(jobs -p) &> /dev/null; exit' EXIT INT
+trap '{ kill -9 $(jobs -p); exit; } &> /dev/null;' EXIT INT
 
-calc(){ awk 'BEGIN{ print int('$1') }'; }
+calc(){ awk 'BEGIN{ print int('"$1"') }'; }
 
 cleanup(){
     case $1 in
@@ -37,17 +37,19 @@ integrity_check(){
 }
 
 workspace_setup(){
-    [[ -f ".conf" ]] || menu && [[ -f ".conf" ]] || exit
+    [[ -f .conf ]] || menu && [[ -f .conf ]] || exit
     IFS="|" read file name mode fw rw comp_level mm magisk addons <<< "$(awk -F ': ' 'ORS="|" {print $2}' .conf)"
     name=${name%.*}
     ((mm == 0)) && unset magisk
     case $mode in
         0) OUT="./output/ModeOne/"; OUTFW="./output/ModeOne/"; mkdir -p $OUT;;
         1) OUT="./output/ModeTwo/rom/"; OUTFW="./output/ModeTwo/fw/"; mkdir -p $OUT $OUTFW;; esac
-    grep -q 'Magisk' <<< "$addons" && custom_magisk && name+="+Magisk"
-    grep -q 'Recovery' <<< "$addons" && name+="+Recovery" \
-        && while [[ -z "$twrp" ]]; do twrp=$(sh recovery_manager.sh); done
-    grep -q 'DFE' <<< "$addons" && name+="+DFE"
+    while read -d ", "; do
+        case $REPLY in
+            *Magisk*) name+="+Magisk" && custom_magisk;;
+            *Recovery*) name+="+Recovery" \
+                && while [[ -z "$twrp" ]]; do twrp=$(sh recovery_manager.sh); done;;
+            *DFE*) name+="+DFE";; esac; done <<< "${addons},"
     name+="_repack"
     rom_updater_path="${OUT}META-INF/com/google/android"
     fw_updater_path="${OUTFW}META-INF/com/google/android"
@@ -58,10 +60,10 @@ workspace_setup(){
 successbar(){
     (
     while ((${current:=0} != 100)); do
-        curfile=$(ls -tc $1 | head -n 1)
-        chunk=$(du -sb $1 | cut -f1)
+        curfile=$(ls -tc "$1" | head -n 1)
+        chunk=$(du -sb "$1" | cut -f1)
         current=$(calc "($chunk/$3)*100")
-        echo $current
+        echo "$current"
         echo "XXX"
         echo "‎"
         echo "Files are extracting: $curfile"
@@ -72,18 +74,30 @@ successbar(){
      dialog  --title "$2" --gauge "" 7 70 0
 }
 
+reverse_extract(){
+    mv tmp/*.img extracted/ 2> /dev/null || printf "\e[31m%s\e[0m\n" "Certain img files are missing, we'll have to quit" 1>&2
+    printf "\e[37m%s\e[0m\n" "Reverse engineering partition images..."
+    readarray files <<< $(find tmp/ -type f -name *.new.dat* -o -name *.transfer.list)
+    for index in ${!files[@]}; {
+        dat=${files[$index]##*/}
+        [[ `echo ${files[$index]}` == *.transfer* ]] && continue
+        [[ `echo ${files[$index]}` == *.br ]] && { dat=${dat/.br/}; brotli -j -d ${files[$index]}; }
+        dat2img ${files[((index+1))]} tmp/$dat extracted/${dat%%.*}.img &> /dev/null
+    }
+}
+
 payload_extract(){
     paydump -c 8 -o extracted/ "$file" &> /dev/null &
-    successbar extracted "Payload Image Extraction" $(paydump -l $file | tail -1)
+    successbar extracted "Payload Image Extraction" "$(paydump -l "$file" | tail -1)"
     firmware_extract
 }
 
 firmware_extract(){
     rm -rf tmp/*
-    [[ "$fw" == "None" ]] || {
+    [[ $fw == None ]] || {
         { 7za l "$fw" "*.img" -r | grep -q .img; } && {
             7za e -otmp/ "$fw" "*.img" -r -y &> /dev/null &
-            successbar tmp/ "Firmware Extraction" $(7za l "$fw" "*.img" -r | awk 'END{ print $3 }')
+            successbar tmp/ "Firmware Extraction" "$(7za l "$fw" "*.img" -r | awk 'END{ print $3 }')"
         }
         mv tmp/* extracted/
     }
@@ -100,7 +114,7 @@ fastboot_extract(){
     printf "\e[37m%s\e[0m\n" "Unpacking super..."
     lpunpack extracted/super.img extracted/
     rm extracted/super.img
-    for file in extracted/*_a.img; { mv $file ${file%%_a.img}.img; }
+    for file in extracted/*_a.img; { mv "$file" "${file%%_a.img}".img; }
     rm -rf extracted/*_b.img extracted/rescue.img extracted/userdata.img extracted/dummy.img\
            extracted/persist.img extracted/metadata.img extracted/metadata.img
     firmware_extract
@@ -113,25 +127,34 @@ file_extractor(){
         rom_name=${file##*/}
         7za e "$file" -y -mmt8 -bso0 -bsp0 -o. && size=$(7za l "${rom_name%.tgz}.tar" -ttar "*.img" -r -mmt8 | awk 'END{ print $4 }')
         7za e "${rom_name%.tgz}.tar" -y -bso0 -bsp0 -sdel -ttar "*.img" -r -mmt8 -otmp/ &
-        successbar tmp "Fastboot Image Extraction" $size
-        fastboot_extract
+        successbar tmp "Fastboot Image Extraction" "$size"
+        fastboot_extract && return
      ;;
      *.7z|*.zip|*.bin)
-        [[ "$file" == *.bin ]] && payload_extract && return
-        content=$(7za l "$file" payload.bin super.img -r)
+        [[ $file == *.bin ]] && payload_extract && return
+        content=$(7za l "$file" payload.bin super.img "*.dat*" -r)
         { grep -q payload.bin <<< "$content";} && {
             7za e -otmp/ "$file" payload.bin -y -mmt8 &> /dev/null &
             successbar tmp "Payload.bin Extraction" \
-                              $(7za l "$file" payload.bin | awk 'END{ print $4 }')
+                              "$(7za l "$file" payload.bin | awk 'END{ print $4 }')"
             file=tmp/payload.bin
             payload_extract
-            rm -rf tmp/*
+            rm -rf tmp/* && return
         }
-        { grep -q "$super.img$" <<< "$content"; } && {
+        { grep -q '$super.img$' <<< "$content"; } && {
             7za e "$file" -otmp/ "*.img" -y -r -mmt8 &> /dev/null &
             successbar tmp "Fastboot Image Extraction" \
-                    $(7za l "$file" "*.img" -r | grep "files" | awk '{ print $3 }')
-            fastboot_extract
+                    "$(7za l "$file" "*.img" -r | grep "files" | awk '{ print $3 }')"
+            fastboot_extract && return
+        }
+        { grep -q '.dat' <<< "$content"; } && {
+            dialog --title "Warning" --stdout --yesno \
+                "This ROM is already in a repacked state, therefore no need repacking. Do you still want to continue?" 6 60
+            (($? == 1 )) && cleanup --deep && exit
+            7za e "$file" -otmp/ "*.new.dat*" "*.transfer.list" "*.img" -y -r -mmt8 &> /dev/null &
+            successbar tmp "Reverse Repack Extraction" \
+                    "$(7za l "$file" "*.new.dat" "*.transfer.list" "*.img" -r | grep "files" | awk '{ print $3 }')"
+            reverse_extract && return
         }
      ;;
     esac
@@ -140,7 +163,7 @@ file_extractor(){
 }
 
 custom_magisk(){
-    [[ -z "$magisk" ]] && return
+    [[ -z $magisk ]] && return
     7za l "$magisk" lib/arm64-v8a/libmagiskboot.so | grep -q libmagiskboot.so && \
         arch="arm64-v8a" || arch="armeabi-v7a"
     rm -rf .magisk && mkdir -p .magisk/chromeos
@@ -150,42 +173,37 @@ custom_magisk(){
 
     for lib in .magisk/lib*; {
         lib=${lib%.so}
-        mv ${lib}.so $lib
-        mv $lib .magisk/${lib#*lib}
+        mv "${lib}".so "$lib"
+        mv "$lib" .magisk/"${lib#*lib}"
     }
     chmod -R +x .magisk
 }
 
-patch_magisk(){
-    [[ "$addons" =~ Magisk ]] || return
-    printf "\e[32m%s\e[0m\n" " Patching kernel with Magisk..."
-    [[ -d ".magisk" ]] || cp -rf /data/adb/magisk/ .magisk
-    [[ $addons =~ Recovery ]] && mv ${OUTFW}boot/boot.img .magisk || ln -n extracted/boot.img .magisk/
-    sh .magisk/boot_patch.sh boot.img &> /dev/null
-    rm .magisk/boot.img
-    mv .magisk/new-boot.img ${OUTFW}boot/boot.img
-    rm -rf .magisk
-    printf "\e[1m\e[1;32m%s\e[0m\n" " Magisk patch is done"
-}
-
-patch_recovery(){
-    [[ "$addons" =~ Recovery ]] || return
-    printf "\e[32m%s\e[0m\n" " Patching kernel with TWRP..."
-    [[ -d ".magisk" ]] || cp -rf /data/adb/magisk/ .magisk
+patch_recovery_magisk(){
+    [[ -d .magisk ]] || cp -rf /data/adb/magisk/ .magisk # No need to check for no recovery and no magisk
     ln -n extracted/boot.img .magisk/
-    cd .magisk || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with magisk folder, we can't seem to find it"; exit 1; }
-    ./magiskboot unpack boot.img &> /dev/null
-    tar xf ../twrp/"$twrp" -C ./
-    ./magiskboot cpio ramdisk.cpio sha1 &> /dev/null
-    ./magiskboot repack boot.img &> /dev/null
+    cd .magisk || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with magisk folder, we can't seem to find it" 1>&2; exit 1; }
+    [[ $addons =~ Recovery ]] && {
+        printf "\e[32m%s\e[0m\n" " Patching kernel with TWRP..."
+        ./magiskboot unpack boot.img &> /dev/null
+        tar xf ../twrp/"$twrp" -C ./
+        ./magiskboot cpio ramdisk.cpio sha1 &> /dev/null
+        ./magiskboot repack boot.img &> /dev/null
+        printf "\e[1m\e[1;32m%s\e[0m\n" " Recovery patch is done"
+    }
+    [[ $addons =~ Magisk ]] && {
+        [[ -f new-boot.img ]] && mv new-boot.img boot.img
+        printf "\e[32m%s\e[0m\n" " Patching kernel with Magisk..."
+        sh boot_patch.sh boot.img &> /dev/null
+        printf "\e[1m\e[1;32m%s\e[0m\n" " Magisk patch is done"
+    }
     cd ..
     mv .magisk/new-boot.img ${OUTFW}boot/boot.img
-    .magisk/magiskboot cleanup &> /dev/null
-    printf "\e[1m\e[1;32m%s\e[0m\n" " Recovery patch is done"
+    rm -rf .magisk
 }
 
 patch_vendor(){
-    [[ "$addons" =~ DFE ]] || return
+    [[ $addons =~ DFE ]] || return
     tune2fs -f -O ^read-only extracted/vendor.img &> /dev/null
     (( rw == 0 )) && grant_rw extracted/vendor.img &> /dev/null
     printf "\e[1m\e[1;37m%s\e[0m\n" " Mounting vendor.img..."
@@ -213,20 +231,20 @@ get_image_size(){
     SYSTEMEXT=$(stat -c%s extracted/system_ext.img)
     PRODUCT=$(stat -c%s extracted/product.img)
     [[ -f extracted/odm.img ]] && ODM=$(stat -c%s extracted/odm.img)
-    total=$(calc $VENDOR+$SYSTEM+$SYSTEMEXT+$PRODUCT+${ODM:=0})
+    total=$(calc "$VENDOR"+"$SYSTEM"+"$SYSTEMEXT"+"$PRODUCT"+"${ODM:=0}")
 }
 
 grant_rw(){
-    imgsize=$(stat -c%s $1)
-    new_size=$(calc $imgsize*1.25/512)
-    resize2fs -f $1 ${new_size}s
-    e2fsck -y -E unshare_blocks $1
-    resize2fs -f -M $1
-    resize2fs -f -M $1
+    imgsize=$(stat -c%s "$1")
+    new_size=$(calc "$imgsize"*1.25/512)
+    resize2fs -f "$1" "${new_size}"s
+    e2fsck -y -E unshare_blocks "$1"
+    resize2fs -f -M "$1"
+    resize2fs -f -M "$1"
     
-    imgsize=$(stat -c%s $1)
+    imgsize=$(stat -c%s "$1")
     new_size=$(calc "($imgsize+20*1024*1024)/512")
-    resize2fs -f $1 ${new_size}s
+    resize2fs -f "$1" "${new_size}"s
 }
 
 multi_process_sparse(){
@@ -235,39 +253,39 @@ multi_process_sparse(){
     img2sdat ${OUT}$file -v4 -o $OUT -p ${file%.*} 
     rm ${OUT}$file && \
     [[ $file == "system.img" ]] && (( comp_level > 0 )) && \
-        brotli -$comp_level -j ${OUT}${file%.*}.new.dat
+        brotli -"$comp_level" -j ${OUT}${file%.*}.new.dat
 }
 
 img_to_sparse(){
     printf "\n\e[1;32m%s\e[0m\n" " Converting images in background"
     printf "\e[1;37m%s\e[0m\n" " Giving read and write permissions..."
-    empty_space=$(calc 8988393472-$total)
+    empty_space=$(calc 8988393472-"$total")
     for file in extracted/*.img; {
         case ${file##*/} in system.img|product.img|system_ext.img|odm.img|vendor.img)
             (( rw == 1 )) && {
-                tune2fs -l $file | grep -q 'shared_blocks' && grant_rw $file &> /dev/null
+                tune2fs -l "$file" | grep -q 'shared_blocks' && grant_rw "$file" &> /dev/null
             } 
-            [[ ${file##*/} == "vendor.img" ]] && patch_vendor
-            (( SYSTEM > 4694304000 )) && { multi_process_sparse $file &> /dev/null & continue; }
+            [[ ${file##*/} == vendor.img ]] && patch_vendor
+            (( SYSTEM > 4694304000 )) && { multi_process_sparse "$file" &> /dev/null & continue; }
             case ${file##*/} in
-                odm.img) multi_process_sparse $file &> /dev/null & continue;;
-                system.img) new_size=$(calc $SYSTEM+$empty_space/2) ;;
-                *) new_size=$(calc $(stat -c%s $file)+$empty_space/2/3);; esac
-            fallocate -l $new_size $file
-            resize2fs -f $file &> /dev/null
-            multi_process_sparse $file &> /dev/null &
+                odm.img) multi_process_sparse "$file" &> /dev/null & continue;;
+                system.img) new_size=$(calc "$SYSTEM"+"$empty_space"/2) ;;
+                *) new_size=$(calc "$(stat -c%s "$file")"+"$empty_space"/2/3);; esac
+            fallocate -l "$new_size" "$file"
+            resize2fs -f "$file" &> /dev/null
+            multi_process_sparse "$file" &> /dev/null &
         ;;
-        vendor_boot.img|dtbo.img) (( mode == 1 )) && ln $file ${OUTFW}boot/ && continue || \
-             ln $file ${OUT}boot/ || continue;;
+        vendor_boot.img|dtbo.img) (( mode == 1 )) && ln "$file" ${OUTFW}boot/ && continue || \
+             ln "$file" ${OUT}boot/ || continue;;
         boot.img) continue ;;
-        *) ln -n $file ${OUTFW}firmware-update/
+        *) ln -n "$file" ${OUTFW}firmware-update/
         esac
     }
     echo
 }
 
 create_zip_structure(){
-    [[ "$name" == "None" ]] && name="UnnamedRom"
+    [[ $name == None ]] && name="UnnamedRom"
     header=$(cat <<EOF | sed 's/^ *//g; s/^$/ /'
                   ui_print("*****************************");
                   ui_print(" - $name by AutoRepack"); 
@@ -371,18 +389,18 @@ create_flashable(){
     printf '\e[1;32m◼%.0s' $(seq 1 $COLUMNS)
     (( mode == 1 )) && {
         printf "\n\n\e[1m\e[37m%s\e[0m\n\n\n" "Packing firmware files..."
-        cd $OUTFW || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with firmware output folder, we can't seem to find it"; exit 1; }
+        cd $OUTFW || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with firmware output folder, we can't seem to find it" 1>&2; exit 1; }
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name"-Step1.zip * -bso0
         printf "\n\n\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
-        cd ../rom || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with rom output folder, we can't seem to find it"; exit 1; }
+        cd ../rom || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with rom output folder, we can't seem to find it" 1>&2; exit 1; }
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name"-Step2.zip * -bso0
     } ||
     {
         printf "\n\n\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
-        cd $OUT || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with rom output folder, we can't seem to find it"; exit 1; }
+        cd $OUT || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with rom output folder, we can't seem to find it" 1>&2; exit 1; }
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name".zip * -bso0
     }
-    cd $HOME
+    cd "$HOME" || exit
     cleanup --deep
     printf "\e[1;32m%s\e[0m\n\n" "Your repacked rom is ready to flash. You can find it in /sdcard/Repacks/"
     exit
@@ -395,8 +413,7 @@ main(){
     echo
     get_image_size
     img_to_sparse
-    patch_recovery
-    patch_magisk
+    patch_recovery_magisk
     get_image_size
     create_flashable
 }
