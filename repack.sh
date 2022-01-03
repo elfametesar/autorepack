@@ -58,27 +58,23 @@ workspace_setup(){
 }
 
 successbar(){
-    (
     while ((${current:=0} != 100)); do
-        curfile=$(ls -tc "$1" | head -n 1)
         chunk=$(du -sb "$1" | cut -f1)
         current=$(calc "($chunk/$3)*100")
         echo "$current"
         echo "XXX"
         echo "‎"
-        echo "Files are extracting: $curfile"
+        printf "Files are extracting: %s\n" "$(ls -tc "$1" | head -n 1)"
         echo "XXX"
         sleep 1
-     done
-     ) |
-     dialog  --title "$2" --gauge "" 7 70 0
+     done | dialog  --title "$2" --gauge "" 7 70 0
 }
 
 reverse_extract(){
     mv tmp/*.img extracted/ 2> /dev/null || printf "\e[31m%s\e[0m\n" "Certain img files are missing, we'll have to quit" 1>&2
     printf "\e[37m%s\e[0m\n" "Reverse engineering partition images..."
-    readarray files <<< $(find tmp/ -type f -name *.new.dat* -o -name *.transfer.list)
-    for index in ${!files[@]}; {
+    readarray files <<< "$(find tmp/ -type f -name "*.new.dat*" -o -name "*.transfer.list")"
+    for index in "${!files[@]}"; {
         dat=${files[$index]##*/}
         [[ `echo ${files[$index]}` == *.transfer* ]] && continue
         [[ `echo ${files[$index]}` == *.br ]] && { dat=${dat/.br/}; brotli -j -d ${files[$index]}; }
@@ -227,10 +223,10 @@ patch_vendor(){
 }
 
 get_image_size(){
-    VENDOR=$(stat -c%s extracted/vendor.img)
-    SYSTEM=$(stat -c%s extracted/system.img)
-    SYSTEMEXT=$(stat -c%s extracted/system_ext.img)
-    PRODUCT=$(stat -c%s extracted/product.img)
+    VENDOR=$(stat -c%s extracted/vendor.img) || { printf "\e[1;31m%s\e[0m\n" " Vendor partition is missing" 1>&2; exit 3; }
+    SYSTEM=$(stat -c%s extracted/system.img) || { printf "\e[1;31m%s\e[0m\n" " System partition is missing" 1>&2; exit 3; }
+    SYSTEMEXT=$(stat -c%s extracted/system_ext.img) || { printf "\e[1;31m%s\e[0m\n" " System Ext partition is missing" 1>&2; exit 3; }
+    PRODUCT=$(stat -c%s extracted/product.img) || { printf "\e[1;31m%s\e[0m\n" " Product partition is missing" 1>&2; exit 3; }
     [[ -f extracted/odm.img ]] && ODM=$(stat -c%s extracted/odm.img)
     total=$(calc "$VENDOR"+"$SYSTEM"+"$SYSTEMEXT"+"$PRODUCT"+"${ODM:=0}")
 }
@@ -297,6 +293,8 @@ create_zip_structure(){
                   run_program("/sbin/busybox", "umount", "/system_ext");
                   run_program("/sbin/busybox", "umount", "/odm");
                   run_program("/sbin/busybox", "umount", "/vendor");
+                  
+                  package_extract_file("avbctl", "/tmp/");
  
                   ui_print("Flashing partition images..."); 
 EOF
@@ -352,11 +350,13 @@ EOF
         $fw_lines
         assert(update_dynamic_partitions(package_extract_file("dynamic_partitions_op_list")));
         $partition_lines
-EOF
-    cat <<EOF | sed 's/^ *//g' >> $rom_updater_path/updater-script
-             show_progress(0.100000, 10); 
-             run_program("/system/bin/bootctl", "set-active-boot-slot", "0"); 
-             set_progress(1.000000);
+        
+        run_program("/tmp/avbctl", "disable-verity");
+        run_program("/tmp/avbctl", "disable-verification");
+        
+        show_progress(0.100000, 10); 
+        run_program("/system/bin/bootctl", "set-active-boot-slot", "0"); 
+        set_progress(1.000000);
 EOF
     printf "\n\n\e[1m\e[37m%s\e[0m\n\n" " Creating dynamic partition list..."
     cat <<EOF | sed 's/^ *//g' >> ${OUTFW}dynamic_partitions_op_list
