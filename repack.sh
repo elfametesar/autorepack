@@ -180,7 +180,7 @@ custom_magisk(){
 }
 
 patch_recovery_magisk(){
-    [[ $addons =~ Recovery || $addons =~ Magisk ]] || return
+    [[ $addons =~ Recovery || $addons =~ Magisk ]] || { ln -n extracted/boot.img ${OUTFW}boot/boot.img; return; }
     [[ -d .magisk ]] || cp -rf /data/adb/magisk/ .magisk
     ln -n extracted/boot.img .magisk/
     cd .magisk || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with magisk folder, we can't seem to find it" 1>&2; exit 1; }
