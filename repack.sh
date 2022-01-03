@@ -134,11 +134,9 @@ file_extractor(){
             fastboot_extract
         }
      ;;
-     ''|*)
-        printf "\e[1;31m%s\e[0m\n" "You did not choose a valid file" 1>&2
-        exit
-     ;;
     esac
+    printf "\e[1;31m%s\e[0m\n" "You did not choose a valid ROM file" 1>&2
+    exit
 }
 
 custom_magisk(){
