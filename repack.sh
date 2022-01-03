@@ -82,7 +82,7 @@ reverse_extract(){
         dat=${files[$index]##*/}
         [[ `echo ${files[$index]}` == *.transfer* ]] && continue
         [[ `echo ${files[$index]}` == *.br ]] && { dat=${dat/.br/}; brotli -j -d ${files[$index]}; }
-        dat2img ${files[((index+1))]} tmp/$dat extracted/${dat%%.*}.img &> /dev/null
+        sdat2img ${files[((index+1))]} tmp/$dat extracted/${dat%%.*}.img &> /dev/null
     }
 }
 
