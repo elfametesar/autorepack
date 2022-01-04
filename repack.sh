@@ -121,7 +121,8 @@ file_extractor(){
      *.tgz)
         printf "\e[37m%s\e[0m\n" "Retrieving information from archive..."
         rom_name=${file##*/}
-        7za e "$file" -y -mmt8 -bso0 -bsp0 -o. && size=$(7za l "${rom_name%.tgz}.tar" -ttar "*.img" -r -mmt8 | awk 'END{ print $4 }')
+        7za e "$file" -y -mmt8 -bso0 -bsp0 -o. && \
+            size=$(7za l "${rom_name%.tgz}.tar" -ttar "*.img" -r -mmt8 | awk 'END{ print $4 }')
         7za e "${rom_name%.tgz}.tar" -y -bso0 -bsp0 -sdel -ttar "*.img" -r -mmt8 -otmp/ &
         successbar tmp "Fastboot Image Extraction" "$size"
         fastboot_extract && return
@@ -137,7 +138,7 @@ file_extractor(){
             payload_extract
             rm -rf tmp/* && return
         }
-        { grep -q '$super.img$' <<< "$content"; } && {
+        { grep -q 'super.img' <<< "$content"; } && {
             7za e "$file" -otmp/ "*.img" -y -r -mmt8 &> /dev/null &
             successbar tmp "Fastboot Image Extraction" \
                     "$(7za l "$file" "*.img" -r | grep "files" | awk '{ print $3 }')"
@@ -152,9 +153,8 @@ file_extractor(){
                     "$(7za l "$file" "*.new.dat" "*.transfer.list" "*.img" -r | grep "files" | awk '{ print $3 }')"
             reverse_extract && return
         }
-     ;;
-     *) printf "\e[1;31m%s\e[0m\n" "You did not choose a valid ROM file" 1>&2 && exit 1
     esac
+    printf "\e[1;31m%s\e[0m\n" "You did not choose a valid ROM file" 1>&2 && exit 1
 }
 
 custom_magisk(){
@@ -175,9 +175,9 @@ custom_magisk(){
 }
 
 patch_recovery_magisk(){
-    [[ $addons =~ Recovery || $addons =~ Magisk ]] || { ln -n extracted/boot.img ${OUTFW}boot/boot.img; return; }
+    [[ $addons =~ Recovery || $addons =~ Magisk ]] || { ln -n -f extracted/boot.img ${OUTFW}boot/boot.img; return; }
     [[ -d .magisk ]] || cp -rf /data/adb/magisk/ .magisk
-    ln -n extracted/boot.img .magisk/
+    ln -n -f extracted/boot.img .magisk/
     cd .magisk || { printf "\e[1;31m%s\e[0m\n" "* Something went wrong with magisk folder, we can't seem to find it" 1>&2; exit 1; }
     [[ $addons =~ Recovery ]] && {
         printf "\e[32m%s\e[0m\n" " Patching kernel with TWRP..."
@@ -283,10 +283,10 @@ img_to_sparse(){
             resize2fs -f "$file" &> /dev/null
             multi_process_sparse "$file" &> /dev/null &
         ;;
-        vendor_boot.img|dtbo.img) (( mode == 1 )) && ln "$file" ${OUTFW}boot/ && continue || \
-             ln "$file" ${OUT}boot/ || continue;;
+        vendor_boot.img|dtbo.img) (( mode == 1 )) && ln -n -f "$file" ${OUTFW}boot/ && continue || \
+             ln -n -f "$file" ${OUT}boot/ || continue;;
         boot.img) continue ;;
-        *) ln -n "$file" ${OUTFW}firmware-update/
+        *) ln -n -f "$file" ${OUTFW}firmware-update/
         esac
     }
     echo
@@ -352,10 +352,10 @@ EOF
             set_progress(1.000000);
 EOF
         unset fw_lines
-        ln -n bin/aarch64-linux-gnu/update-binary $fw_updater_path
+        ln -n -f bin/aarch64-linux-gnu/update-binary $fw_updater_path
      ;;
     esac
-    ln -n bin/aarch64-linux-gnu/update-binary $rom_updater_path
+    ln -n -f bin/aarch64-linux-gnu/update-binary $rom_updater_path
     cat <<EOF | sed 's/^ *//g; s/^$/ /' > $rom_updater_path/updater-script
         $header
         $fw_lines
