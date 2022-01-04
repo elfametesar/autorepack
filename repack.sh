@@ -7,10 +7,6 @@ export TERMINFO=$PREFIX/share/terminfo/
 mkdir -p /sdcard/Repacks
 HOME=$PWD
 
-{ cp colors.properties $PREFIX/../home/.termux; \
-chown -R $(stat -c%G $PREFIX) $PREFIX/../home/.termux; \
-termux-reload-settings;} &> /dev/null
-
 trap '{ kill -9 $(jobs -p); umount tmp; exit; } &> /dev/null;' EXIT INT
 
 calc(){ awk 'BEGIN{ print int('"$1"') }'; }
