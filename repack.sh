@@ -7,7 +7,7 @@ export TERMINFO=$PREFIX/share/terminfo/
 mkdir -p /sdcard/Repacks
 HOME=$PWD
 
-trap '{ kill -9 $(jobs -p); exit; } &> /dev/null;' EXIT INT
+trap '{ kill -9 $(jobs -p); umount tmp; exit; } &> /dev/null;' EXIT INT
 
 calc(){ awk 'BEGIN{ print int('"$1"') }'; }
 
@@ -71,7 +71,7 @@ successbar(){
 }
 
 reverse_extract(){
-    mv tmp/*.img extracted/ 2> /dev/null || printf "\e[31m%s\e[0m\n" "Certain img files are missing, we'll have to quit" 1>&2
+    mv tmp/*.img extracted/ 2> /dev/null || { printf "\e[1;31m%s\e[0m\n" "* Certain img files are missing, we'll have to quit" 1>&2; exit 1; }
     printf "\e[37m%s\e[0m\n" "Reverse engineering partition images..."
     readarray files <<< "$(find tmp/ -type f -name "*.new.dat*" -o -name "*.transfer.list")"
     for index in "${!files[@]}"; {
@@ -153,9 +153,8 @@ file_extractor(){
             reverse_extract && return
         }
      ;;
+     *) printf "\e[1;31m%s\e[0m\n" "You did not choose a valid ROM file" 1>&2 && exit 1
     esac
-    printf "\e[1;31m%s\e[0m\n" "You did not choose a valid ROM file" 1>&2
-    exit
 }
 
 custom_magisk(){
@@ -179,7 +178,7 @@ patch_recovery_magisk(){
     [[ $addons =~ Recovery || $addons =~ Magisk ]] || { ln -n extracted/boot.img ${OUTFW}boot/boot.img; return; }
     [[ -d .magisk ]] || cp -rf /data/adb/magisk/ .magisk
     ln -n extracted/boot.img .magisk/
-    cd .magisk || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with magisk folder, we can't seem to find it" 1>&2; exit 1; }
+    cd .magisk || { printf "\e[1;31m%s\e[0m\n" "* Something went wrong with magisk folder, we can't seem to find it" 1>&2; exit 1; }
     [[ $addons =~ Recovery ]] && {
         printf "\e[32m%s\e[0m\n" " Patching kernel with TWRP..."
         ./magiskboot unpack boot.img &> /dev/null
@@ -212,21 +211,33 @@ patch_vendor(){
     done
     { mountpoint -q tmp; } && {
         printf "\e[1;32m%s\e[0m\n" " Vendor image has temporarily been mounted"
-        sh dfe.sh tmp/ 
+        sed -i 's|,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized+wrappedkey_v0||
+                   s|,metadata_encryption=aes-256-xts:wrappedkey_v0||
+                   s|,keydirectory=/metadata/vold/metadata_encryption||
+                   s|,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized||
+                   s|,encryptable=aes-256-xts:aes-256-cts:v2+_optimized||
+                   s|,encryptable=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized+wrappedkey_v0||
+                   s|,quota||;
+                   s|inlinecrypt||;
+                   s|,wrappedkey||' tmp/etc/fstab* &> /dev/null || { printf "\e[1;33m%s\n\e[0m" \
+                       "* It is a strong possibility that vendor is corrupted, starting over is recommended" 1>&2; exit 4; }
+        { grep -q 'keydirectory' tmp/etc/fstab*; } \
+            && { printf "\e[1;31m%s\n\e[0m" "* Vendor patch for decryption has failed" 1>&2; exit 1; } \
+            || { printf "\e[1;32m%s\n\e[0m" " Vendor has been succesfully patched for decryption"; }
         sed -i 's/encrypted/unsupported/' tmp/etc/init/hw/init.gourami.rc &> /dev/null
         umount tmp
     } ||
     {
-        printf "\e[1;31m%s\e[0m\n" " Vendor image could not be mounted. Continuing without DFE patch" 1>&2
+        printf "\e[1;31m%s\e[0m\n" "* Vendor image could not be mounted. Continuing without DFE patch" 1>&2
     }
     (( rw == 0 )) && tune2fs -f -O read-only extracted/vendor.img &> /dev/null
 }
 
 get_image_size(){
-    VENDOR=$(stat -c%s extracted/vendor.img) || { printf "\e[1;31m%s\e[0m\n" " Vendor partition is missing" 1>&2; exit 3; }
-    SYSTEM=$(stat -c%s extracted/system.img) || { printf "\e[1;31m%s\e[0m\n" " System partition is missing" 1>&2; exit 3; }
-    SYSTEMEXT=$(stat -c%s extracted/system_ext.img) || { printf "\e[1;31m%s\e[0m\n" " System Ext partition is missing" 1>&2; exit 3; }
-    PRODUCT=$(stat -c%s extracted/product.img) || { printf "\e[1;31m%s\e[0m\n" " Product partition is missing" 1>&2; exit 3; }
+    VENDOR=$(stat -c%s extracted/vendor.img) || { printf "\e[1;31m%s\e[0m\n" "* Vendor partition is missing" 1>&2; exit 3; }
+    SYSTEM=$(stat -c%s extracted/system.img) || { printf "\e[1;31m%s\e[0m\n" "* System partition is missing" 1>&2; exit 3; }
+    SYSTEMEXT=$(stat -c%s extracted/system_ext.img) || { printf "\e[1;31m%s\e[0m\n" "* System Ext partition is missing" 1>&2; exit 3; }
+    PRODUCT=$(stat -c%s extracted/product.img) || { printf "\e[1;31m%s\e[0m\n" "* Product partition is missing" 1>&2; exit 3; }
     [[ -f extracted/odm.img ]] && ODM=$(stat -c%s extracted/odm.img)
     total=$(calc "$VENDOR"+"$SYSTEM"+"$SYSTEMEXT"+"$PRODUCT"+"${ODM:=0}")
 }
@@ -390,15 +401,15 @@ create_flashable(){
     printf '\e[1;32m◼%.0s' $(seq 1 $COLUMNS)
     (( mode == 1 )) && {
         printf "\n\n\e[1m\e[37m%s\e[0m\n\n\n" "Packing firmware files..."
-        cd $OUTFW || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with firmware output folder, we can't seem to find it" 1>&2; exit 1; }
+        cd $OUTFW || { printf "\e[1;31m%s\e[0m\n" "* Something went wrong with firmware output folder, we can't seem to find it" 1>&2; exit 1; }
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name"-Step1.zip * -bso0
         printf "\n\n\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
-        cd ../rom || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with rom output folder, we can't seem to find it" 1>&2; exit 1; }
+        cd ../rom || { printf "\e[1;31m%s\e[0m\n" "* Something went wrong with rom output folder, we can't seem to find it" 1>&2; exit 1; }
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name"-Step2.zip * -bso0
     } ||
     {
         printf "\n\n\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
-        cd $OUT || { printf "\e[1;31m%s\e[0m\n" "Something went wrong with rom output folder, we can't seem to find it" 1>&2; exit 1; }
+        cd $OUT || { printf "\e[1;31m%s\e[0m\n" "* Something went wrong with rom output folder, we can't seem to find it" 1>&2; exit 1; }
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name".zip * -bso0
     }
     cd "$HOME" || exit
