@@ -41,6 +41,7 @@ workspace_setup(){
     IFS="|" read file name mode fw rw comp_level mm magisk addons <<< "$(awk -F ': ' 'ORS="|" {print $2}' .conf)"
     name=${name%.*}
     ((mm == 0)) && unset magisk
+    (( comp_level > 9 )) && comp_level="-best"
     case $mode in
         0) OUT="./output/ModeOne/"; OUTFW="./output/ModeOne/"; mkdir -p $OUT;;
         1) OUT="./output/ModeTwo/rom/"; OUTFW="./output/ModeTwo/fw/"; mkdir -p $OUT $OUTFW;; esac
@@ -73,13 +74,10 @@ successbar(){
 reverse_extract(){
     mv tmp/*.img extracted/ 2> /dev/null || { printf "\e[1;31m%s\e[0m\n" "* Certain img files are missing, we'll have to quit" 1>&2; exit 1; }
     printf "\e[37m%s\e[0m\n" "Reverse engineering partition images..."
-    readarray files <<< "$(find tmp/ -type f -name "*.new.dat*" -o -name "*.transfer.list")"
-    for index in "${!files[@]}"; {
-        dat=${files[$index]##*/}
-        [[ `echo ${files[$index]}` == *.transfer* ]] && continue
-        [[ `echo ${files[$index]}` == *.br ]] && { dat=${dat/.br/}; brotli -j -d ${files[$index]}; }
-        sdat2img ${files[((index+1))]} tmp/$dat extracted/${dat%%.*}.img &> /dev/null
-    }
+    while read file; do
+        [[ ${file} == *.br ]] && { brotli -j -d tmp/${file}; file=${$file/.br/}; }
+        sdat2img tmp/${file%%.*}.transfer.list tmp/${file} extracted/${file%%.*}.img #&> /dev/null
+    done <<< "$(find tmp/ -type f -name "*.new.dat*" -printf "%f\n")"
 }
 
 payload_extract(){
@@ -243,15 +241,15 @@ get_image_size(){
 }
 
 grant_rw(){
-    imgsize=$(stat -c%s "$1")
-    new_size=$(calc "$imgsize"*1.25/512)
+    img_size=$(stat -c%s "$1")
+    new_size=$(calc "$img_size"*1.25/512)
     resize2fs -f "$1" "${new_size}"s
     e2fsck -y -E unshare_blocks "$1"
     resize2fs -f -M "$1"
     resize2fs -f -M "$1"
     
-    imgsize=$(stat -c%s "$1")
-    new_size=$(calc "($imgsize+20*1024*1024)/512")
+    img_size=$(stat -c%s "$1")
+    new_size=$(calc "($img_size+20*1024*1024)/512")
     resize2fs -f "$1" "${new_size}"s
 }
 
