@@ -9,11 +9,7 @@ HOME=$PWD
 
 trap '{ kill -9 $(jobs -p); umount tmp; exit; } &> /dev/null;' EXIT INT
 
-calc(){
-    case $1 in
-        -a) awk 'BEGIN{ print int('"$2"') }';;
-        -b) printf "%d\n" $(( $2 ));; esac
-}
+calc(){ awk 'BEGIN{ print int('"$1"') }'; }
 
 cleanup(){
     case $1 in
@@ -65,7 +61,7 @@ workspace_setup(){
 successbar(){
     while ((${current:=0} != 100)); do
         chunk=$(du -sb "$1" | cut -f1)
-        current=$(calc -a $chunk/$3*100)
+        current=$(calc "($chunk/$3)*100")
         echo "$current"
         echo "XXX"
         echo "‎"
@@ -80,7 +76,7 @@ reverse_extract(){
     printf "\e[37m%s\e[0m\n" "Reverse engineering partition images..."
     while read file; do
         [[ ${file} == *.br ]] && { brotli -j -d tmp/${file}; file=${$file/.br/}; }
-        sdat2img tmp/${file%%.*}.transfer.list tmp/${file} extracted/${file%%.*}.img &> /dev/null
+        sdat2img tmp/${file%%.*}.transfer.list tmp/${file} extracted/${file%%.*}.img #&> /dev/null
     done <<< "$(find tmp/ -type f -name "*.new.dat*" -printf "%f\n")"
 }
 
@@ -241,20 +237,20 @@ get_image_size(){
     SYSTEMEXT=$(stat -c%s extracted/system_ext.img) || { printf "\e[1;31m%s\e[0m\n" "* System Ext partition is missing" 1>&2; exit 3; }
     PRODUCT=$(stat -c%s extracted/product.img) || { printf "\e[1;31m%s\e[0m\n" "* Product partition is missing" 1>&2; exit 3; }
     [[ -f extracted/odm.img ]] && ODM=$(stat -c%s extracted/odm.img)
-    total=$(calc -b VENDOR+SYSTEM+SYSTEMEXT+PRODUCT+${ODM:=0})
+    total=$(calc "$VENDOR"+"$SYSTEM"+"$SYSTEMEXT"+"$PRODUCT"+"${ODM:=0}")
 }
 
 grant_rw(){
     img_size=$(stat -c%s "$1")
-    img_size=$(calc -a $img_size*1.25/512)
-    resize2fs -f "$1" "${img_size}"s
+    new_size=$(calc "$img_size"*1.25/512)
+    resize2fs -f "$1" "${new_size}"s
     e2fsck -y -E unshare_blocks "$1"
     resize2fs -f -M "$1"
     resize2fs -f -M "$1"
     
     img_size=$(stat -c%s "$1")
-    ing_size=$(calc -a $img_size+20*1024*1024/512)
-    resize2fs -f "$1" "${img_size}"s
+    new_size=$(calc "($img_size+20*1024*1024)/512")
+    resize2fs -f "$1" "${new_size}"s
 }
 
 multi_process_sparse(){
@@ -269,7 +265,7 @@ multi_process_sparse(){
 img_to_sparse(){
     printf "\n\e[1;32m%s\e[0m\n" " Converting images in background"
     printf "\e[1;37m%s\e[0m\n" " Giving read and write permissions..."
-    empty_space=$(calc -b 8988393472-total)
+    empty_space=$(calc 8988393472-"$total")
     for file in extracted/*.img; {
         case ${file##*/} in system.img|product.img|system_ext.img|odm.img|vendor.img)
             (( rw == 1 )) && {
@@ -279,8 +275,8 @@ img_to_sparse(){
             (( SYSTEM > 4694304000 )) && { multi_process_sparse "$file" &> /dev/null & continue; }
             case ${file##*/} in
                 odm.img) multi_process_sparse "$file" &> /dev/null & continue;;
-                system.img) new_size=$(calc -b SYSTEM+empty_space/2);;
-                *) new_size=$(calc -b $(stat -c%s "$file")+empty_space/2/3);; esac
+                system.img) new_size=$(calc "$SYSTEM"+"$empty_space"/2) ;;
+                *) new_size=$(calc "$(stat -c%s "$file")"+"$empty_space"/2/3);; esac
             fallocate -l "$new_size" "$file"
             resize2fs -f "$file" &> /dev/null
             multi_process_sparse "$file" &> /dev/null &
