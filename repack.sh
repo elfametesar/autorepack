@@ -2,10 +2,9 @@
 
 export PATH=$PWD/bin:$PATH
 export LC_ALL=C
-export TERM=linux
 export TERMINFO=$PREFIX/share/terminfo/
+export HOME=$PWD
 mkdir -p /sdcard/Repacks
-HOME=$PWD
 
 trap '{ kill -9 $(jobs -p); umount tmp; exit; } &> /dev/null;' EXIT INT
 
@@ -222,12 +221,8 @@ patch_vendor(){
         { grep -q 'keydirectory' tmp/etc/fstab*; } \
             && { printf "\e[1;31m%s\n\e[0m" "* Vendor patch for decryption has failed" 1>&2; exit 1; } \
             || { printf "\e[1;32m%s\n\e[0m" " Vendor has been succesfully patched for decryption"; }
-        sed -i 's/encrypted/unsupported/' tmp/etc/init/hw/init.gourami.rc &> /dev/null
         umount tmp
-    } ||
-    {
-        printf "\e[1;31m%s\e[0m\n" "* Vendor image could not be mounted. Continuing without DFE patch" 1>&2
-    }
+    } || printf "\e[1;31m%s\e[0m\n" "* Vendor image could not be mounted. Continuing without DFE patch" 1>&2
     (( rw == 0 )) && tune2fs -f -O read-only extracted/vendor.img &> /dev/null
 }
 
@@ -259,20 +254,23 @@ multi_process_sparse(){
     img2sdat ${OUT}$file -v4 -o $OUT -p ${file%.*} 
     rm ${OUT}$file && \
     [[ $file == "system.img" ]] && (( comp_level > 0 )) && \
-        brotli -"$comp_level" -j ${OUT}${file%.*}.new.dat
+        brotli -$comp_level -j ${OUT}${file%.*}.new.dat
 }
 
 img_to_sparse(){
     printf "\n\e[1;32m%s\e[0m\n" " Converting images in background"
     printf "\e[1;37m%s\e[0m\n" " Giving read and write permissions..."
-    empty_space=$(calc 8988393472-"$total")
+    empty_space=$(calc 8988393472-$total)
     for file in extracted/*.img; {
         case ${file##*/} in system.img|product.img|system_ext.img|odm.img|vendor.img)
-            (( rw == 1 )) && {
-                tune2fs -l "$file" | grep -q 'shared_blocks' && grant_rw "$file" &> /dev/null
-            } 
+            (( rw == 1 )) && { tune2fs -l "$file" | grep -q 'shared_blocks' && grant_rw "$file" &> /dev/null; } 
             [[ ${file##*/} == vendor.img ]] && patch_vendor
-            (( SYSTEM > 4694304000 )) && { multi_process_sparse "$file" &> /dev/null & continue; }
+            (( SYSTEM > 4694304000 )) && { 
+                case $mode in
+                    0) (( comp_level < 1 )) && comp_level=4;;
+                    1) (( comp_level < 1 )) && comp_level=2;; esac
+                multi_process_sparse "$file" &> /dev/null &
+                continue; }
             case ${file##*/} in
                 odm.img) multi_process_sparse "$file" &> /dev/null & continue;;
                 system.img) new_size=$(calc "$SYSTEM"+"$empty_space"/2) ;;
@@ -292,32 +290,31 @@ img_to_sparse(){
 
 create_zip_structure(){
     [[ $name == None ]] && name="UnnamedRom"
-    header=$(cat <<EOF | sed 's/^ *//g; s/^$/ /'
-                  ui_print("*****************************");
-                  ui_print(" - $name by AutoRepack"); 
-                  ui_print("*****************************");
+    header=$(cat <<-EOF
+				ui_print("*****************************");
+				ui_print(" - $name by AutoRepack"); 
+				ui_print("*****************************");
 
-                  run_program("/sbin/busybox", "umount", "/system_root");
-                  run_program("/sbin/busybox", "umount", "/product");
-                  run_program("/sbin/busybox", "umount", "/system_ext");
-                  run_program("/sbin/busybox", "umount", "/odm");
-                  run_program("/sbin/busybox", "umount", "/vendor");
-                  
-                  package_extract_file("avbctl", "/tmp/");
- 
-                  ui_print("Flashing partition images..."); 
+				run_program("/sbin/busybox", "umount", "/system_root");
+				run_program("/sbin/busybox", "umount", "/product");
+				run_program("/sbin/busybox", "umount", "/system_ext");
+				run_program("/sbin/busybox", "umount", "/odm");
+				run_program("/sbin/busybox", "umount", "/vendor");
+
+				package_extract_file("avbctl", "/tmp/");
+
+				ui_print("Flashing partition images..."); 
 EOF
 )
     for partition in ${OUT}*.new.dat*; {
         partition=${partition##*/}
-        partition_lines+=$(cat <<EOF | sed 's/^ *//g; s/^$/ /'
+        partition_lines+=$(cat <<-EOF
 
-        ui_print("Flashing ${partition%%.*}_a partition..."); 
-        show_progress(0.100000, 0); 
-        block_image_update(map_partition("${partition%%.*}_a"), package_extract_file("${partition%%.*}.transfer.list"), "$partition", "${partition%%.*}.patch.dat") || abort("E2001: Failed to flash ${partition%%.*}_a partition.");
+		ui_print("Flashing ${partition%%.*}_a partition..."); 
+		show_progress(0.100000, 0); 
+		block_image_update(map_partition("${partition%%.*}_a"), package_extract_file("${partition%%.*}.transfer.list"), "$partition", "${partition%%.*}.patch.dat") || abort("E2001: Failed to flash ${partition%%.*}_a partition.");
 
 EOF
-
 )
     }
     for fw in ${OUTFW}firmware-update/* ${OUTFW}boot/*; {
@@ -328,10 +325,10 @@ EOF
         *)
             root="firmware-update"
         ;; esac
-        fw_lines+=$(cat <<EOF | sed 's/^ *//g; s/^$/ /'
+        fw_lines+=$(cat <<-EOF
  
-                package_extract_file("$root/$fw", "/dev/block/bootdevice/by-name/${fw%%.img}_a");
-                package_extract_file("$root/$fw", "/dev/block/bootdevice/by-name/${fw%%.img}_b");
+				package_extract_file("$root/$fw", "/dev/block/bootdevice/by-name/${fw%%.img}_a");
+				package_extract_file("$root/$fw", "/dev/block/bootdevice/by-name/${fw%%.img}_b");
  
 EOF
 )
@@ -341,50 +338,50 @@ EOF
         fw_lines+=$(sed -n '/. *Flashing system_a.*/{xNNN;d}p' <<< "$partition_lines")
         partition_lines=$(sed -n '/. *Flashing system_a.*/{NNN;p}' <<< "$partition_lines")
         mv ${OUT}{vendor*,odm*,product*,system_ext*} $OUTFW
-        cat <<EOF | sed 's/^ *//g; s/^$/ /' > $fw_updater_path/updater-script
-            $header
-            assert(update_dynamic_partitions(package_extract_file("dynamic_partitions_op_list")));
-            $fw_lines
-            show_progress(0.100000, 10);
-            run_program("/system/bin/bootctl", "set-active-boot-slot", "0");
-            set_progress(1.000000);
+        cat <<-EOF > $fw_updater_path/updater-script
+			$header
+			assert(update_dynamic_partitions(package_extract_file("dynamic_partitions_op_list")));
+			$fw_lines
+			show_progress(0.100000, 10);
+			run_program("/system/bin/bootctl", "set-active-boot-slot", "0");
+			set_progress(1.000000);
 EOF
         unset fw_lines
         ln -n -f bin/aarch64-linux-gnu/update-binary $fw_updater_path
      ;;
     esac
     ln -n -f bin/aarch64-linux-gnu/update-binary $rom_updater_path
-    cat <<EOF | sed 's/^ *//g; s/^$/ /' > $rom_updater_path/updater-script
-        $header
-        $fw_lines
-        assert(update_dynamic_partitions(package_extract_file("dynamic_partitions_op_list")));
-        $partition_lines
-        
-        run_program("/tmp/avbctl", "disable-verity");
-        run_program("/tmp/avbctl", "disable-verification");
-        
-        show_progress(0.100000, 10); 
-        run_program("/system/bin/bootctl", "set-active-boot-slot", "0"); 
-        set_progress(1.000000);
+    cat <<-EOF > $rom_updater_path/updater-script
+		$header
+		$fw_lines
+		assert(update_dynamic_partitions(package_extract_file("dynamic_partitions_op_list")));
+		$partition_lines
+
+		run_program("/tmp/avbctl", "--force", "disable-verity");
+		run_program("/tmp/avbctl", "--force", "disable-verification");
+
+		show_progress(0.100000, 10); 
+		run_program("/system/bin/bootctl", "set-active-boot-slot", "0"); 
+		set_progress(1.000000);
 EOF
     printf "\n\n\e[1m\e[37m%s\e[0m\n\n" " Creating dynamic partition list..."
-    cat <<EOF | sed 's/^ *//g' >> ${OUTFW}dynamic_partitions_op_list
-             remove_all_groups
-             add_group qti_dynamic_partitions_a 9122611200
-             add_group qti_dynamic_partitions_b 9122611200
-             add system_a qti_dynamic_partitions_a
-             add system_b qti_dynamic_partitions_b
-             add system_ext_a qti_dynamic_partitions_a
-             add system_ext_b qti_dynamic_partitions_b
-             add product_a qti_dynamic_partitions_a
-             add product_b qti_dynamic_partitions_b
-             add vendor_a qti_dynamic_partitions_a
-             add vendor_b qti_dynamic_partitions_b
-             add odm_a qti_dynamic_partitions_a
-             add odm_b qti_dynamic_partitions_b
-             resize system_ext_a $SYSTEMEXT
-             resize product_a $PRODUCT
-             resize vendor_a $VENDOR
+    cat <<-EOF >> ${OUTFW}dynamic_partitions_op_list
+			remove_all_groups
+			add_group qti_dynamic_partitions_a 9122611200
+			add_group qti_dynamic_partitions_b 9122611200
+			add system_a qti_dynamic_partitions_a
+			add system_b qti_dynamic_partitions_b
+			add system_ext_a qti_dynamic_partitions_a
+			add system_ext_b qti_dynamic_partitions_b
+			add product_a qti_dynamic_partitions_a
+			add product_b qti_dynamic_partitions_b
+			add vendor_a qti_dynamic_partitions_a
+			add vendor_b qti_dynamic_partitions_b
+			add odm_a qti_dynamic_partitions_a
+			add odm_b qti_dynamic_partitions_b
+			resize system_ext_a $SYSTEMEXT
+			resize product_a $PRODUCT
+			resize vendor_a $VENDOR
 EOF
     echo "resize system_a $SYSTEM" >> ${OUT}dynamic_partitions_op_list
     [[ -f extracted/odm.img ]] && echo "resize odm_a $ODM" >> ${OUTFW}dynamic_partitions_op_list
