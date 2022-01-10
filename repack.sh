@@ -179,7 +179,7 @@ patch_recovery_magisk(){
     [[ $addons =~ Recovery ]] && {
         printf "\e[32m%s\e[0m\n" " Patching kernel with TWRP..."
         ./magiskboot unpack boot.img &> /dev/null
-        7za e ../twrp/"$twrp" -so | 7za e -aoa -si -ttar -o.magisk/ -bso0 -bsp0
+        7za e ../twrp/"$twrp" -so | 7za e -aoa -si -ttar -o. -bso0 -bsp0
         ./magiskboot cpio ramdisk.cpio sha1 &> /dev/null
         ./magiskboot repack boot.img &> /dev/null
         printf "\e[1m\e[1;32m%s\e[0m\n" " Recovery patch is done"
