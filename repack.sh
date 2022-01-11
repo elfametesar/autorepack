@@ -172,6 +172,7 @@ custom_magisk(){
 }
 
 patch_recovery_magisk(){
+    patch_boot --remove-avb
     [[ $addons =~ Recovery || $addons =~ Magisk ]] || { ln -n -f extracted/boot.img ${OUTFW}boot/boot.img; return; }
     [[ -d .magisk ]] || cp -rf /data/adb/magisk/ .magisk
     ln -n -f extracted/boot.img .magisk/
