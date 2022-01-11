@@ -261,7 +261,7 @@ multi_process_sparse(){
 img_to_sparse(){
     printf "\n\e[1;32m%s\e[0m\n" " Converting images in background"
     printf "\e[1;37m%s\e[0m\n" " Giving read and write permissions..."
-    empty_space=$(calc 8988393472-$total)
+    empty_space=$(calc 8788393472-$total)
     for file in extracted/*.img; {
         case ${file##*/} in system.img|product.img|system_ext.img|odm.img|vendor.img)
             (( rw == 1 )) && { tune2fs -l "$file" | grep -q 'shared_blocks' && grant_rw "$file" &> /dev/null; } 
