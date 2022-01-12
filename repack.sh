@@ -172,7 +172,6 @@ custom_magisk(){
 }
 
 patch_recovery_magisk(){
-    patch_boot --remove-avb
     [[ $addons =~ Recovery || $addons =~ Magisk ]] || { ln -n -f extracted/boot.img ${OUTFW}boot/boot.img; return; }
     [[ -d .magisk ]] || cp -rf /data/adb/magisk/ .magisk
     ln -n -f extracted/boot.img .magisk/
@@ -274,7 +273,7 @@ img_to_sparse(){
                 continue; }
             case ${file##*/} in
                 odm.img) multi_process_sparse "$file" &> /dev/null & continue;;
-                system.img) new_size=$(calc "$SYSTEM"+"$empty_space"/2) ;;
+                system.img) new_size=$(calc "$SYSTEM"+"$empty_space"/2) && patch_boot --remove-avb ;;
                 *) new_size=$(calc "$(stat -c%s "$file")"+"$empty_space"/2/3);; esac
             fallocate -l "$new_size" "$file"
             resize2fs -f "$file" &> /dev/null
