@@ -250,6 +250,7 @@ grant_rw(){
 
 multi_process_sparse(){
     file=${file##*/}
+    [[ $file == system.img ]] && (( ODM < 1 )) && patch_boot --remove-avb
     img2simg extracted/$file ${OUT}$file 4096
     img2sdat ${OUT}$file -v4 -o $OUT -p ${file%.*} 
     rm ${OUT}$file && \
@@ -273,7 +274,7 @@ img_to_sparse(){
                 continue; }
             case ${file##*/} in
                 odm.img) multi_process_sparse "$file" &> /dev/null & continue;;
-                system.img) new_size=$(calc "$SYSTEM"+"$empty_space"/2) && patch_boot --remove-avb ;;
+                system.img) new_size=$(calc "$SYSTEM"+"$empty_space"/2);;
                 *) new_size=$(calc "$(stat -c%s "$file")"+"$empty_space"/2/3);; esac
             fallocate -l "$new_size" "$file"
             resize2fs -f "$file" &> /dev/null
