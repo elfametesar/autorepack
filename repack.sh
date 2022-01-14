@@ -144,10 +144,10 @@ file_extractor(){
         { grep -q '.dat' <<< "$content"; } && {
             dialog --title "Warning" --stdout --yesno \
                 "This ROM is already in a repacked state, therefore no need repacking. Do you still want to continue?" 6 60
-            (($? == 1 )) && cleanup --deep && exit
+            (( $? == 1 )) && cleanup --deep && exit
             7za e "$file" -otmp/ "*.new.dat*" "*.transfer.list" "*.img" -y -r -mmt8 &> /dev/null &
             successbar tmp "Reverse Repack Extraction" \
-                    "$(7za l "$file" "*.new.dat" "*.transfer.list" "*.img" -r | grep "files" | awk '{ print $3 }')"
+                    "$(7za l "$file" "*.new.dat*" "*.transfer.list" "*.img" -r | grep "files" | awk '{ print $3 }')"
             reverse_extract && return
         }
     esac
@@ -268,7 +268,7 @@ img_to_sparse(){
             [[ ${file##*/} == vendor.img ]] && patch_vendor
             (( SYSTEM > 4694304000 )) && { 
                 case $mode in
-                    0) (( comp_level < 1 )) && comp_level=4;;
+                    0) (( comp_level < 1 )) && comp_level=5;;
                     1) (( comp_level < 1 )) && comp_level=2;; esac
                 multi_process_sparse "$file" &> /dev/null &
                 continue; }
@@ -280,8 +280,7 @@ img_to_sparse(){
             resize2fs -f "$file" &> /dev/null
             multi_process_sparse "$file" &> /dev/null &
         ;;
-        vendor_boot.img|dtbo.img) (( mode == 1 )) && ln -n -f "$file" ${OUTFW}boot/ && continue || \
-             ln -n -f "$file" ${OUT}boot/ || continue;;
+        vendor_boot.img|dtbo.img) ln -n -f "$file" ${OUTFW}boot/;;
         boot.img) continue ;;
         *) ln -n -f "$file" ${OUTFW}firmware-update/
         esac
@@ -293,7 +292,7 @@ create_zip_structure(){
     [[ $name == None ]] && name="UnnamedRom"
     header=$(cat <<-EOF
 				ui_print("*****************************");
-				ui_print(" - $name by AutoRepack"); 
+				ui_print(" - ${name%%+*} by AutoRepack"); 
 				ui_print("*****************************");
 
 				run_program("/sbin/busybox", "umount", "/system_root");
