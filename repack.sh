@@ -19,11 +19,11 @@ cleanup(){
 integrity_check(){
     find extracted/ -type f | grep -q '.img' || { cleanup --deep; main; }
     for check in extracted/*.img; {
-        case ${check##*/} in (system.img|product.img|system_ext.img|boot.img|vendor_boot.img|dtbo.img)
+        case ${check##*/} in (system.img|product.img|system_ext.img|boot.img|vendor_boot.img)
            ((headcount++))
         esac
     }
-    ((headcount != 6)) && {
+    ((headcount != 5)) && {
         dialog --stdout --title "Integrity Check" --msgbox \
             "There are some useless leftover .img files in the workspace. They will be cleaned up." 6 50
         cleanup --deep
@@ -99,12 +99,12 @@ firmware_extract(){
 fastboot_extract(){
     echo
     { file tmp/super.img | grep -q sparse; } && {
-        printf "\e[37m%s\e[0m\n" "Converting super.img to raw..."
+        printf "\e[1;37m%s\e[0m\n" "Converting super.img to raw..."
         simg2img tmp/super.img extracted/super.img
         rm tmp/super.img
     }
     find tmp/ -type f | grep -q .img && mv tmp/*.img extracted/
-    printf "\e[37m%s\e[0m\n" "Unpacking super..."
+    printf "\e[1;37m%s\e[0m\n" "Unpacking super..."
     lpunpack extracted/super.img extracted/
     rm extracted/super.img
     for file in extracted/*_a.img; { mv "$file" "${file%%_a.img}".img; }
@@ -116,7 +116,7 @@ fastboot_extract(){
 file_extractor(){
     case $file in
      *.tgz)
-        printf "\e[37m%s\e[0m\n" "Retrieving information from archive..."
+        printf "\e[1;37m%s\e[0m\n" "Retrieving information from archive..."
         rom_name=${file##*/}
         7za e "$file" -y -mmt8 -bso0 -bsp0 -o. && \
             size=$(7za l "${rom_name%.tgz}.tar" -ttar "*.img" -r -mmt8 | awk 'END{ print $4 }')
@@ -173,8 +173,9 @@ custom_magisk(){
 
 patch_recovery_magisk(){
     [[ $addons =~ Recovery || $addons =~ Magisk ]] || { ln -n -f extracted/boot.img ${OUTFW}boot/boot.img; return; }
+    sleep .2
     [[ -d .magisk ]] || cp -rf /data/adb/magisk/ .magisk
-    ln -n -f extracted/boot.img .magisk/
+    ln -n -f extracted/boot.img .magisk/; echo
     cd .magisk || { printf "\e[1;31m%s\e[0m\n" "* Something went wrong with magisk folder, we can't seem to find it" 1>&2; exit 1; }
     [[ $addons =~ Recovery ]] && {
         printf "\e[32m%s\e[0m\n" " Patching kernel with TWRP..."
@@ -208,6 +209,7 @@ patch_vendor(){
     done
     { mountpoint -q tmp; } && {
         printf "\e[1;32m%s\e[0m\n" " Vendor image has temporarily been mounted"
+        { echo "test" > tmp/test && rm tmp/test; } &> /dev/null
         sed -i 's|,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized+wrappedkey_v0||
                    s|,metadata_encryption=aes-256-xts:wrappedkey_v0||
                    s|,keydirectory=/metadata/vold/metadata_encryption||
@@ -224,6 +226,7 @@ patch_vendor(){
         umount tmp
     } || printf "\e[1;31m%s\e[0m\n" "* Vendor image could not be mounted. Continuing without DFE patch" 1>&2
     (( rw == 0 )) && tune2fs -f -O read-only extracted/vendor.img &> /dev/null
+    return 0
 }
 
 get_image_size(){
@@ -251,21 +254,21 @@ grant_rw(){
 multi_process_sparse(){
     file=${file##*/}
     [[ $file == system.img ]] && (( ODM < 1 )) && patch_boot --remove-avb
-    img2simg extracted/$file ${OUT}$file 4096
-    img2sdat ${OUT}$file -v4 -o $OUT -p ${file%.*} 
+    [[ ${file##*/} == vendor.img ]] && patch_vendor >/dev/tty
+    img2simg extracted/$file ${OUT}$file
+    img2sdat ${OUT}$file -v4 -o $OUT -p ${file%.*}
     rm ${OUT}$file && \
     [[ $file == "system.img" ]] && (( comp_level > 0 )) && \
         brotli -$comp_level -j ${OUT}${file%.*}.new.dat
 }
 
 img_to_sparse(){
-    printf "\n\e[1;32m%s\e[0m\n" " Converting images in background"
+    printf "\n\e[1;32m%s\e[0m\n\n" " Converting images in background"
     printf "\e[1;37m%s\e[0m\n" " Giving read and write permissions..."
     empty_space=$(calc 8788393472-$total)
     for file in extracted/*.img; {
         case ${file##*/} in system.img|product.img|system_ext.img|odm.img|vendor.img)
-            (( rw == 1 )) && { tune2fs -l "$file" | grep -q 'shared_blocks' && grant_rw "$file" &> /dev/null; } 
-            [[ ${file##*/} == vendor.img ]] && patch_vendor
+            (( rw == 1 )) && { tune2fs -l "$file" | grep -q 'shared_blocks' && grant_rw "$file" &> /dev/null; }
             (( SYSTEM > 4694304000 )) && { 
                 case $mode in
                     0) (( comp_level < 1 )) && comp_level=5;;
@@ -285,7 +288,6 @@ img_to_sparse(){
         *) ln -n -f "$file" ${OUTFW}firmware-update/
         esac
     }
-    echo
 }
 
 create_zip_structure(){
