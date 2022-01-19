@@ -74,7 +74,7 @@ reverse_extract(){
     mv tmp/*.img extracted/ 2> /dev/null || { printf "\e[1;31m%s\e[0m\n" "* Certain img files are missing, we'll have to quit" 1>&2; exit 1; }
     printf "\e[37m%s\e[0m\n" "Reverse engineering partition images..."
     while read file; do
-        [[ ${file} == *.br ]] && { brotli -j -d tmp/${file}; file=${$file/.br/}; }
+        [[ ${file} == *.br ]] && { brotli -j -d tmp/${file}; file=${file/.br/}; }
         sdat2img tmp/${file%%.*}.transfer.list tmp/${file} extracted/${file%%.*}.img &> /dev/null
     done <<< "$(find tmp/ -type f -name "*.new.dat*" -printf "%f\n")"
 }
