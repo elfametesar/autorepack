@@ -66,7 +66,7 @@ successbar(){
         echo "‎"
         printf "Files are extracting: %s\n" "$(ls -tc "$1" | head -n 1)"
         echo "XXX"
-        sleep 1
+        read -t 1
      done | dialog  --title "$2" --gauge "" 7 70 0
 }
 
@@ -173,7 +173,7 @@ custom_magisk(){
 
 patch_recovery_magisk(){
     [[ $addons =~ Recovery || $addons =~ Magisk ]] || { ln -n -f extracted/boot.img ${OUTFW}boot/boot.img; return; }
-    sleep .2
+    read -t 1
     [[ -d .magisk ]] || cp -rf /data/adb/magisk/ .magisk
     ln -n -f extracted/boot.img .magisk/; echo
     cd .magisk || { printf "\e[1;31m%s\e[0m\n" "* Something went wrong with magisk folder, we can't seem to find it" 1>&2; exit 1; }
