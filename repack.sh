@@ -39,8 +39,7 @@ integrity_check(){
 
 workspace_setup(){
     [[ -f .conf ]] || menu && [[ -f .conf ]] || exit
-    IFS="|" read file name mode fw rw comp_level mm magisk addons \
-        <<< "$(awk -F ': ' 'ORS="|" {print $2}' .conf)"
+    IFS=$':\n' read -d '\n' _ file _ name _ mode _ fw _ rw _ comp_level _ mm _ magisk _ addons < .conf
     name=${name%.*}
     (( mm == 0 )) && unset magisk
     (( comp_level > 9 )) && comp_level="-best"
