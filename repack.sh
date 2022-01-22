@@ -106,7 +106,7 @@ fastboot_extract(){
     echo
     { file tmp/super.img | grep -q sparse; } && {
         printf "\e[1;37m%s\e[0m\n" "Converting super.img to raw..."
-        simg2img tmp/super.img extracted/super.img0
+        simg2img tmp/super.img extracted/super.img
         rm tmp/super.img
     }
     [[ $(printf tmp/*.img) != "tmp/*.img" ]] && mv tmp/*.img extracted/
