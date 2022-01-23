@@ -39,8 +39,9 @@ integrity_check(){
 
 workspace_setup(){
     [[ -f .conf ]] || menu && [[ -f .conf ]] || exit
-    IFS=$':\n' read -d '\n' _ file _ name _ mode _ fw _ rw _ comp_level _ mm _ magisk _ addons < .conf
+    IFS=$' :\n' read -d '\n' _ file _ name _ mode _ fw _ rw _ comp_level _ mm _ magisk _ addons < .conf
     name=${name%.*}
+    echo $file $name
     (( mm == 0 )) && unset magisk
     (( comp_level > 9 )) && comp_level="-best"
     case $mode in
