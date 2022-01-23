@@ -8,6 +8,8 @@ mkdir -p /sdcard/Repacks
 trap '{ kill -9 $(jobs -p); umount tmp; exit; } &> /dev/null;' EXIT INT
 calc(){ awk 'BEGIN{ print int('"$1"') }'; }
 
+print(){ printf "\e[1m\x1b[38;2;%d;%d;%dm%b\x1b[0m\n" 0x${1:0:2} 0x${1:2:2} 0x${1:4} "$2"; }
+
 cleanup(){
     case $1 in
       --deep) rm -rf .magisk extracted/* output tmp/* .config;;
@@ -72,8 +74,8 @@ successbar(){
 
 reverse_extract(){
     mv tmp/*.img extracted/ 2> /dev/null || \
-        { printf "\e[1;31m%s\e[0m\n" "* Certain img files are missing, we'll have to quit" 1>&2; exit 1; }
-    printf "\e[1;37m%s\e[0m\n" "Reverse engineering partition images..."
+        { print c2195a "* Certain img files are missing, we'll have to quit" 1>&2; exit 1; }
+    print d1d1d1 "Reverse engineering partition images..."
     while read file; do
         file=${file##*/}
         [[ ${file} == *.br ]] && { brotli -j -d tmp/${file}; file=${file/.br/}; }
@@ -102,12 +104,12 @@ firmware_extract(){
 fastboot_extract(){
     echo
     { file tmp/super.img | grep -q sparse; } && {
-        printf "\e[1;37m%s\e[0m\n" "Converting super.img to raw..."
+        print d1d1d1 "Converting super.img to raw..."
         simg2img tmp/super.img extracted/super.img
         rm tmp/super.img
     }
     [[ $(printf tmp/*.img) != "tmp/*.img" ]] && mv tmp/*.img extracted/
-    printf "\e[1;37m%s\e[0m\n" "Unpacking super..."
+    print d1d1d1 "Unpacking super..."
     lpunpack extracted/super.img extracted/
     rm extracted/super.img
     for file in extracted/*_a.img; { mv $file ${file%_a.img}.img; }
@@ -119,7 +121,7 @@ fastboot_extract(){
 file_extractor(){
     case $file in
      *.tgz)
-        printf "\e[1;37m%s\e[0m\n" "Retrieving information from archive..."
+        print d1d1d1 "Retrieving information from archive..."
         rom_name=${file##*/}
         7za e "$file" -y -mmt8 -bso0 -bsp0 -o.
         size=$(7za l "${rom_name%.tgz}.tar" -ttar "*.img" -r -mmt8 | awk 'END{ print $4 }')
@@ -155,14 +157,14 @@ file_extractor(){
             reverse_extract && return
         }
     esac
-    printf "\e[1;31m%s\e[0m\n" "You did not choose a valid ROM file" 1>&2 && exit 1
+    print c2195a "You did not choose a valid ROM file" 1>&2 && exit 1
 }
 
 custom_magisk(){
     [[ -z $magisk ]] && return
     7za l "$magisk" lib/arm64-v8a/libmagiskboot.so | grep -q libmagiskboot.so && \
         arch="arm64-v8a" || arch="armeabi-v7a"
-    rm -rf .magisk && mkdir -p .magisk/chromeos
+    rm -rf .magisk
     7za e -y -bso0 -bsp0 "$magisk" lib/${arch}/lib* \
          assets/{boot_patch,util_functions}.sh -o.magisk/
 
@@ -180,21 +182,21 @@ patch_recovery_magisk(){
     read -t 1
     [[ -d .magisk ]] || cp -rf /data/adb/magisk/ .magisk
     ln -n -f extracted/boot.img .magisk/; echo
-    cd .magisk || { printf "\e[1;31m%s\e[0m\n" \
+    cd .magisk || { print c2195a \
         "* Something went wrong with magisk folder, we can't seem to find it" 1>&2; exit 1; }
     [[ $addons =~ Recovery ]] && {
-        printf "\e[32m%s\e[0m\n" " Patching kernel with TWRP..."
+        print 62914a " Patching kernel with TWRP..."
         ./magiskboot unpack boot.img &> /dev/null
         7za e ../twrp/"$twrp" -so | 7za e -aoa -si -ttar -o. -bso0 -bsp0
         ./magiskboot cpio ramdisk.cpio sha1 &> /dev/null
         ./magiskboot repack boot.img &> /dev/null
-        printf "\e[1m\e[1;32m%s\e[0m\n" " Recovery patch is done"
+        print 92cf74 " Recovery patch is done"
     }
     [[ $addons =~ Magisk ]] && {
         [[ -f new-boot.img ]] && mv new-boot.img boot.img
-        printf "\e[32m%s\e[0m\n" " Patching kernel with Magisk..."
+        print 62914a " Patching kernel with Magisk..."
         sh boot_patch.sh boot.img &> /dev/null
-        printf "\e[1m\e[1;32m%s\e[0m\n" " Magisk patch is done"
+        print 92cf74 " Magisk patch is done"
     }
     cd ..
     mv .magisk/new-boot.img ${OUTFW}boot/boot.img
@@ -205,7 +207,7 @@ patch_vendor(){
     [[ $addons =~ DFE ]] || return
     tune2fs -f -O ^read-only extracted/vendor.img &> /dev/null
     (( rw == 0 )) && grant_rw extracted/vendor.img &> /dev/null
-    printf "\e[1m\e[1;37m%s\e[0m\n" " Mounting vendor.img..."
+    print d1d1d1 " Mounting vendor.img..."
     mountpoint -q tmp && umount tmp
     while (( ${count:=0} < 6 )); do
         (( count++ ))
@@ -213,35 +215,29 @@ patch_vendor(){
         mountpoint -q tmp && break
     done
     { mountpoint -q tmp; } && {
-        printf "\e[1;32m%s\e[0m\n" " Vendor image has temporarily been mounted"
-        sed -i 's|,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized+wrappedkey_v0||
-                   s|,metadata_encryption=aes-256-xts:wrappedkey_v0||
-                   s|,keydirectory=/metadata/vold/metadata_encryption||
-                   s|,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized||
-                   s|,encryptable=aes-256-xts:aes-256-cts:v2+_optimized||
-                   s|,encryptable=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized+wrappedkey_v0||
-                   s|,quota||;
-                   s|inlinecrypt||;
-                   s|,wrappedkey||' tmp/etc/fstab* &> /dev/null || \
-                       { printf "\e[1;33m%s\n\e[0m" "* It is a strong possibility that \
-                       vendor is corrupted, starting over is recommended" 1>&2; kill 0; }
+        print 92cf74 " Vendor image has temporarily been mounted"
+        sed -i 's|fileencryption[^,]*,||g s|metadata_encryption[^,]*,||
+               s|keydirectory[^,]*,||g s|,encryptable[^,]*,||g
+               s|,quota|| s|inlinecrypt|| s|,wrappedkey||' tmp/etc/fstab* &> /dev/null \
+                       || { print cee61e "* It is a strong possibility that \
+                           vendor is corrupted, starting over is recommended" 1>&2; kill 0; }
         { grep -q 'keydirectory' tmp/etc/fstab*; } 2> /dev/null \
-            && { printf "\e[1;31m%s\n\e[0m" "* Vendor patch for decryption has failed" 1>&2; } \
-            || { printf "\e[1;32m%s\n\e[0m" " Vendor has been succesfully patched for decryption"; }
+            && { print c2195a "* Vendor patch for decryption has failed" 1>&2; } \
+            || { print 92cf74 " Vendor has been succesfully patched for decryption"; }
         umount tmp
-    } || printf "\e[1;31m%s\e[0m\n" "* Vendor image could not be mounted. Continuing without DFE patch" 1>&2
+    } || print c2195a "* Vendor image could not be mounted. Continuing without DFE patch" 1>&2
     (( rw == 0 )) && tune2fs -f -O read-only extracted/vendor.img &> /dev/null
 }
 
 get_image_size(){
     VENDOR=$(stat -c%s extracted/vendor.img) \
-        || { printf "\e[1;31m%s\e[0m\n" "* Vendor partition is missing" 1>&2; exit 3; }
+        || { print c2195a "* Vendor partition is missing" 1>&2; exit 1; }
     SYSTEM=$(stat -c%s extracted/system.img) \
-        || { printf "\e[1;31m%s\e[0m\n" "* System partition is missing" 1>&2; exit 3; }
+        || { print c2195a "* System partition is missing" 1>&2; exit 1; }
     SYSTEMEXT=$(stat -c%s extracted/system_ext.img) \
-        || { printf "\e[1;31m%s\e[0m\n" "* System Ext partition is missing" 1>&2; exit 3; }
+        || { print c2195a "* System Ext partition is missing" 1>&2; exit 1; }
     PRODUCT=$(stat -c%s extracted/product.img) \
-        || { printf "\e[1;31m%s\e[0m\n" "* Product partition is missing" 1>&2; exit 3; }
+        || { print c2195a "* Product partition is missing" 1>&2; exit 1; }
     [[ -f extracted/odm.img ]] && ODM=$(stat -c%s extracted/odm.img)
     total=$(calc $VENDOR+$SYSTEM+$SYSTEMEXT+$PRODUCT+${ODM:=0})
 }
@@ -271,8 +267,8 @@ multi_process_sparse(){
 }
 
 img_to_sparse(){
-    printf "\n\e[1;32m%s\e[0m\n\n" " Converting images in background"
-    printf "\e[1;37m%s\e[0m\n" " Giving read and write permissions..."
+    print 62914a " Converting images in background\n"
+    print d1d1d1 " Giving read and write permissions..."
     empty_space=$(calc 8788393472-$total)
     exec 4>&1; exec 5>&2;
     for file in extracted/*.img; {
@@ -375,7 +371,7 @@ EOF
 		run_program("/system/bin/bootctl", "set-active-boot-slot", "0"); 
 		set_progress(1.000000);
 EOF
-    printf "\n\n\e[1m\e[37m%s\e[0m\n\n" " Creating dynamic partition list..."
+    print d1d1d1 "\n\n Creating dynamic partition list...\n"
     cat <<-EOF >> ${OUTFW}dynamic_partitions_op_list
 			remove_all_groups
 			add_group qti_dynamic_partitions_a 9122611200
@@ -399,31 +395,31 @@ EOF
 }
 
 create_flashable(){
-    printf "\n\e[32m%s\e[0m\n" " Waiting for image processes to be done"
+    print 62914a "\n Waiting for image processes to be done"
     wait 
     create_zip_structure
     printf '\e[1;32m◼%.0s' $(seq 1 $COLUMNS)
     printf "\e[1;32m%#$((COLUMNS/3+26))s\e[0m\n" "Creating flashable repack rom"
     printf '\e[1;32m◼%.0s' $(seq 1 $COLUMNS)
     (( mode == 1 )) && {
-        printf "\n\n\e[1m\e[37m%s\e[0m\n\n\n" "Packing firmware files..."
-        cd $OUTFW || { printf "\e[1;31m%s\e[0m\n" \
+        print d1d1d1 "\n\nPacking firmware files...\n\n"
+        cd $OUTFW || { print c2195a \
             "* Something went wrong with firmware output folder, we can't seem to find it" 1>&2; exit 1; }
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name"-Step1.zip * -bso0
-        printf "\n\n\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
-        cd ../rom || { printf "\e[1;31m%s\e[0m\n" \
+        print d1d1d1 "\n\nPacking rom files...\n"
+        cd ../rom || { print c2195a \
             "* Something went wrong with rom output folder, we can't seem to find it" 1>&2; exit 1; }
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name"-Step2.zip * -bso0
     } ||
     {
-        printf "\n\n\e[1m\e[37m%s\e[0m\n\n" "Packing rom files..."
-        cd $OUT || { printf "\e[1;31m%s\e[0m\n" \
+        print d1d1d1 "\n\nPacking rom files...\n"
+        cd $OUT || { print c2195a \
             "* Something went wrong with rom output folder, we can't seem to find it" 1>&2; exit 1; }
         7za a -r -mx1 -sdel -mmt8 /sdcard/Repacks/"$name".zip * -bso0
     }
     cd $HOME
     cleanup --deep
-    printf "\e[1;32m%s\e[0m\n\n" "Your repacked rom is ready to flash. You can find it in /sdcard/Repacks/"
+    print 92cf74 "Your repacked rom is ready to flash. You can find it in /sdcard/Repacks/\n"
     exit
 }
 
