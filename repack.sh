@@ -1,5 +1,4 @@
 #!/data/local/autorepack/bin/bash
-
 export PATH=$PWD/bin:$PATH
 export LC_ALL=C
 export TERMINFO=$PREFIX/share/terminfo/
@@ -7,7 +6,6 @@ export HOME=$PWD
 mkdir -p /sdcard/Repacks
 
 trap '{ kill -9 $(jobs -p); umount tmp; exit; } &> /dev/null;' EXIT INT
-
 calc(){ awk 'BEGIN{ print int('"$1"') }'; }
 
 cleanup(){
@@ -226,14 +224,13 @@ patch_vendor(){
                    s|inlinecrypt||;
                    s|,wrappedkey||' tmp/etc/fstab* &> /dev/null || \
                        { printf "\e[1;33m%s\n\e[0m" "* It is a strong possibility that \
-                           vendor is corrupted, starting over is recommended" 1>&2; exit 4; }
-        { grep -q 'keydirectory' tmp/etc/fstab*; } \
-            && { printf "\e[1;31m%s\n\e[0m" "* Vendor patch for decryption has failed" 1>&2; exit 1; } \
+                       vendor is corrupted, starting over is recommended" 1>&2; kill 0; }
+        { grep -q 'keydirectory' tmp/etc/fstab*; } 2> /dev/null \
+            && { printf "\e[1;31m%s\n\e[0m" "* Vendor patch for decryption has failed" 1>&2; } \
             || { printf "\e[1;32m%s\n\e[0m" " Vendor has been succesfully patched for decryption"; }
         umount tmp
     } || printf "\e[1;31m%s\e[0m\n" "* Vendor image could not be mounted. Continuing without DFE patch" 1>&2
     (( rw == 0 )) && tune2fs -f -O read-only extracted/vendor.img &> /dev/null
-    return 0
 }
 
 get_image_size(){
@@ -265,7 +262,7 @@ grant_rw(){
 multi_process_sparse(){
     file=${file##*/}
     [[ $file == system.img ]] && (( ODM < 1 )) && patch_boot --remove-avb
-    [[ $file == vendor.img ]] && patch_vendor >/dev/tty
+    [[ $file == vendor.img ]] && patch_vendor 1>&4 2>&5
     img2simg extracted/$file ${OUT}$file
     img2sdat ${OUT}$file -v4 -o $OUT -p ${file%.*}
     rm ${OUT}$file && \
@@ -277,6 +274,7 @@ img_to_sparse(){
     printf "\n\e[1;32m%s\e[0m\n\n" " Converting images in background"
     printf "\e[1;37m%s\e[0m\n" " Giving read and write permissions..."
     empty_space=$(calc 8788393472-$total)
+    exec 4>&1; exec 5>&2;
     for file in extracted/*.img; {
         case ${file##*/} in system.img|product.img|system_ext.img|odm.img|vendor.img)
             (( rw == 1 )) && { tune2fs -l $file | grep -q 'shared_blocks' && grant_rw $file &> /dev/null; }
