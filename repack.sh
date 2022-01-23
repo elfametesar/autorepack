@@ -6,8 +6,8 @@ export HOME=$PWD
 mkdir -p /sdcard/Repacks
 
 trap '{ kill -9 $(jobs -p); umount tmp; exit; } &> /dev/null;' EXIT INT
-calc(){ awk 'BEGIN{ print int('"$1"') }'; }
 
+calc(){ awk 'BEGIN{ print int('"$1"') }'; }
 print(){ printf "\e[1m\x1b[38;2;%d;%d;%dm%b\x1b[0m\n" 0x${1:0:2} 0x${1:2:2} 0x${1:4} "$2"; }
 
 cleanup(){
@@ -216,11 +216,12 @@ patch_vendor(){
     done
     { mountpoint -q tmp; } && {
         print 92cf74 " Vendor image has temporarily been mounted"
+        err_msg="* It is a strong possibility that 
+                           vendor is corrupted, starting over is recommended"
         sed -i 's|fileencryption[^,]*,||g s|metadata_encryption[^,]*,||
                s|keydirectory[^,]*,||g s|,encryptable[^,]*,||g
                s|,quota|| s|inlinecrypt|| s|,wrappedkey||' tmp/etc/fstab* &> /dev/null \
-                       || { print cee61e "* It is a strong possibility that \
-                           vendor is corrupted, starting over is recommended" 1>&2; kill 0; }
+                       || { print cee61e $err_msg 1>&2; kill 0; }
         { grep -q 'keydirectory' tmp/etc/fstab*; } 2> /dev/null \
             && { print c2195a "* Vendor patch for decryption has failed" 1>&2; } \
             || { print 92cf74 " Vendor has been succesfully patched for decryption"; }
