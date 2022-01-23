@@ -12,7 +12,7 @@ calc(){ awk 'BEGIN{ print int('"$1"') }'; }
 
 cleanup(){
     case $1 in
-      --deep) rm -rf .magisk extracted/* output tmp/* .conf;;
+      --deep) rm -rf .magisk extracted/* output tmp/* .config;;
       --soft) rm -rf .magisk tmp/* output;; esac
 }
 
@@ -38,10 +38,9 @@ integrity_check(){
 }
 
 workspace_setup(){
-    [[ -f .conf ]] || menu && [[ -f .conf ]] || exit
-    IFS=$' :\n' read -d '\n' _ file _ name _ mode _ fw _ rw _ comp_level _ mm _ magisk _ addons < .conf
+    [[ -f .config ]] || menu && [[ -f .config ]] || exit
+    IFS=$':\n' read -d '\n' _ file _ name _ mode _ fw _ rw _ comp_level _ mm _ magisk _ addons < .config
     name=${name%.*}
-    echo $file $name
     (( mm == 0 )) && unset magisk
     (( comp_level > 9 )) && comp_level="-best"
     case $mode in
