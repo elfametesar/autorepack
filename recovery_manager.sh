@@ -5,16 +5,13 @@ HOME=$PWD
 calc(){ awk 'BEGIN{ print int('"$1"') }'; }
 
 successbar(){
-    while ((${current:=0} != 100)); do
-        chunk=$(du -sb "$1" | cut -f1)
-        current=$(calc "($chunk/$3)*100")
-        echo "$current"
-        echo "XXX"
-        echo "‎"
-        printf "Files are extracting: %s\n" "$(ls -tc "$1" | head -n 1)"
-        echo "XXX"
-        sleep 1
-     done | dialog --stdout --title "$2" --gauge "" 7 70 0
+    while (( ${current:=0} != 100 )); do
+        chunk=$(du -sb $1)
+        current=$(calc "(${chunk//$'\t'*/}/$3)*100")
+        printf "\n%d\nXXX\n%s\n%s: %s\nXXX" \
+        	${current} "‎" "Files are extracting" $(ls -tc $1 | head -n 1)
+        read -t 1
+     done | dialog  --title "$2" --gauge "" 7 70 0
 }
 
 retrieve_list(){

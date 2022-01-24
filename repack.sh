@@ -3,7 +3,7 @@ export PATH=$PWD/bin:$PATH
 export LC_ALL=C
 export TERMINFO=$PREFIX/share/terminfo/
 export HOME=$PWD
-mkdir -p /sdcard/Repacks
+mkdir /sdcard/Repacks
 
 trap '{ kill -9 $(jobs -p); umount tmp; exit; } &> /dev/null;' EXIT INT
 
@@ -62,13 +62,10 @@ workspace_setup(){
 
 successbar(){
     while (( ${current:=0} != 100 )); do
-        chunk=$(du -sb $1 | cut -f1)
-        current=$(calc "($chunk/$3)*100")
-        echo $current
-        echo "XXX"
-        echo "‎"
-        printf "Files are extracting: %s\n" $(ls -tc $1 | head -n 1)
-        echo "XXX"
+        chunk=$(du -sb $1)
+        current=$(calc "(${chunk//$'\t'*/}/$3)*100")
+        printf "\n%d\nXXX\n%s\n%s: %s\nXXX" \
+        	${current} "‎" "Files are extracting" $(ls -tc $1 | head -n 1)
         read -t 1
      done | dialog  --title "$2" --gauge "" 7 70 0
 }
@@ -96,7 +93,7 @@ firmware_extract(){
         [[ $(7za l "$fw" "*.img" -r) =~ .img ]] && {
             size=$(7za l "$fw" "*.img" -r | awk 'END{ print $3 }')
             7za e -otmp/ "$fw" "*.img" -r -y &> /dev/null &
-            successbar tmp/ "Firmware Extraction"
+            successbar tmp/ "Firmware Extraction" $size
         }
         mv tmp/* extracted/
     }
@@ -272,7 +269,7 @@ img_to_sparse(){
     print 62914a "\n Converting images in background\n"
     print d1d1d1 " Giving read and write permissions..."
     empty_space=$(calc 8788393472-$total)
-    exec 4>&1; exec 5>&2;
+    exec 4>&1 5>&2;
     for file in extracted/*.img; {
         case ${file##*/} in system.img|product.img|system_ext.img|odm.img|vendor.img)
             (( rw == 1 )) && { [[ $(tune2fs -l $file) =~ shared_blocks ]] && grant_rw $file &> /dev/null; }
@@ -299,7 +296,7 @@ img_to_sparse(){
 
 create_zip_structure(){
     [[ $name == None ]] && name="UnnamedRom"
-    header=$(cat <<-EOF
+    read -d '\n' header <<-EOF
 				ui_print("*****************************");
 				ui_print(" - ${name%%+*} by AutoRepack"); 
 				ui_print("*****************************");
@@ -314,7 +311,6 @@ create_zip_structure(){
 
 				ui_print("Flashing partition images..."); 
 EOF
-)
     for partition in ${OUT}*.new.dat*; {
         partition=${partition##*/}
         partition_lines+=$(cat <<-EOF
