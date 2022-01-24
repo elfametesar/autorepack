@@ -7,6 +7,7 @@ mkdir -p /sdcard/Repacks
 
 trap '{ kill -9 $(jobs -p); umount tmp; exit; } &> /dev/null;' EXIT INT
 
+shopt -s extglob
 calc(){ awk 'BEGIN{ print int('"$1"') }'; }
 print(){ printf "\e[1m\x1b[38;2;%d;%d;%dm%b\x1b[0m\n" 0x${1:0:2} 0x${1:2:2} 0x${1:4} "$2"; }
 
@@ -92,7 +93,7 @@ payload_extract(){
 firmware_extract(){
     rm -rf tmp/*
     [[ $fw == None ]] || {
-        { 7za l "$fw" "*.img" -r | grep -q .img; } && {
+        [[ $(7za l "$fw" "*.img" -r) =~ .img ]] && {
             size=$(7za l "$fw" "*.img" -r | awk 'END{ print $3 }')
             7za e -otmp/ "$fw" "*.img" -r -y &> /dev/null &
             successbar tmp/ "Firmware Extraction"
@@ -103,7 +104,7 @@ firmware_extract(){
 
 fastboot_extract(){
     echo
-    { file tmp/super.img | grep -q sparse; } && {
+    [[ $(file tmp/super.img) =~ sparse ]] && {
         print d1d1d1 "Converting super.img to raw..."
         simg2img tmp/super.img extracted/super.img
         rm tmp/super.img
@@ -132,7 +133,7 @@ file_extractor(){
      *.7z|*.zip|*.bin)
         [[ $file == *.bin ]] && payload_extract && return
         content=$(7za l "$file" payload.bin super.img "*.dat*" -r)
-        { grep -q payload.bin <<< "$content";} && {
+        [[ $content =~ payload.bin ]] && {
             size=$(7za l "$file" payload.bin | awk 'END{ print $4 }')
             7za e -otmp/ "$file" payload.bin -y -mmt8 &> /dev/null &
             successbar tmp "Payload.bin Extraction" $size
@@ -140,13 +141,13 @@ file_extractor(){
             payload_extract
             rm -rf tmp/* && return
         }
-        { grep -q 'super.img' <<< "$content"; } && {
+        [[ $content =~ super.img ]] && {
             size=$(7za l "$file" "*.img" -r | awk '/files/ { print $3 }')
             7za e "$file" -otmp/ "*.img" -y -r -mmt8 &> /dev/null &
             successbar tmp "Fastboot Image Extraction" $size
             fastboot_extract && return
         }
-        { grep -q '.dat' <<< "$content"; } && {
+        [[ $content =~ .dat ]] && {
             dialog --title "Warning" --stdout --yesno \
                 "This ROM is already in a repacked state, \
                 therefore no need repacking. Do you still want to continue?" 6 60
@@ -162,7 +163,7 @@ file_extractor(){
 
 custom_magisk(){
     [[ -z $magisk ]] && return
-    7za l "$magisk" lib/arm64-v8a/libmagiskboot.so | grep -q libmagiskboot.so && \
+    [[ $(7za l "$magisk" lib/arm64-v8a/libmagiskboot.so) =~ libmagiskboot.so ]] && \
         arch="arm64-v8a" || arch="armeabi-v7a"
     rm -rf .magisk
     7za e -y -bso0 -bsp0 "$magisk" lib/${arch}/lib* \
@@ -218,11 +219,11 @@ patch_vendor(){
         print 92cf74 " Vendor image has temporarily been mounted"
         err_msg="* It is a strong possibility that 
                            vendor is corrupted, starting over is recommended"
-        sed -i 's|fileencryption[^,]*,||g s|metadata_encryption[^,]*,||
-               s|keydirectory[^,]*,||g s|,encryptable[^,]*,||g
-               s|,quota|| s|inlinecrypt|| s|,wrappedkey||' tmp/etc/fstab* &> /dev/null \
+        sed -ir 's/fileencryption[^,]*(,|$)//g s/metadata_encryption[^,]*(,|$)//
+               s/keydirectory[^,]*(,|$)//g s/encryptable[^,]*(,|$)//g
+               s/,quota// s/inlinecrypt// s/,wrappedkey//' tmp/etc/fstab* &> /dev/null \
                        || { print cee61e $err_msg 1>&2; kill 0; }
-        { grep -q 'keydirectory' tmp/etc/fstab*; } 2> /dev/null \
+        [[ $(<tmp/etc/fstab.!(persist)) =~ keydirectory ]] 2> /dev/null \
             && { print c2195a "* Vendor patch for decryption has failed" 1>&2; } \
             || { print 92cf74 " Vendor has been succesfully patched for decryption"; }
         umount tmp
@@ -268,13 +269,13 @@ multi_process_sparse(){
 }
 
 img_to_sparse(){
-    print 62914a " Converting images in background\n"
+    print 62914a "\n Converting images in background\n"
     print d1d1d1 " Giving read and write permissions..."
     empty_space=$(calc 8788393472-$total)
     exec 4>&1; exec 5>&2;
     for file in extracted/*.img; {
         case ${file##*/} in system.img|product.img|system_ext.img|odm.img|vendor.img)
-            (( rw == 1 )) && { tune2fs -l $file | grep -q 'shared_blocks' && grant_rw $file &> /dev/null; }
+            (( rw == 1 )) && { [[ $(tune2fs -l $file) =~ shared_blocks ]] && grant_rw $file &> /dev/null; }
             (( SYSTEM > 4694304000 )) && { 
                 case $mode in
                     0) (( comp_level < 1 )) && comp_level=5;;
