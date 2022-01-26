@@ -51,7 +51,7 @@ workspace_setup(){
         case $REPLY in
             *Magisk*) name+="+Magisk" && custom_magisk;;
             *Recovery*) name+="+Recovery" \
-                && while [[ -z "$twrp" ]]; do twrp=$(sh recovery_manager.sh); done;;
+                && while [[ -z ${twrp%.tar.xz} ]]; do twrp=$(sh recovery_manager.sh); done;;
             *DFE*) name+="+DFE";; esac; done <<< "${addons},"
     name+="_repack"
     rom_updater_path="${OUT}META-INF/com/google/android"
@@ -183,7 +183,7 @@ patch_recovery_magisk(){
     cd .magisk || { print c2195a \
         "* Something went wrong with magisk folder, we can't seem to find it" 1>&2; exit 1; }
     [[ $addons =~ Recovery ]] && {
-        print 62914a " Patching kernel with TWRP..."
+        print 62914a " Patching kernel with recovery..."
         ./magiskboot unpack boot.img &> /dev/null
         7za e ../twrp/"$twrp" -so | 7za e -aoa -si -ttar -o. -bso0 -bsp0
         ./magiskboot cpio ramdisk.cpio sha1 &> /dev/null
