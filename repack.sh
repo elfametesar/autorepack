@@ -216,7 +216,7 @@ patch_vendor(){
         print 92cf74 " Vendor image has temporarily been mounted"
         err_msg="* It is a strong possibility that 
                            vendor is corrupted, starting over is recommended"
-        sed -ir 's/fileencryption[^,]*(,|$)//g s/metadata_encryption[^,]*(,|$)//
+        sed -i -r 's/fileencryption[^,]*(,|$)//g s/metadata_encryption[^,]*(,|$)//
                s/keydirectory[^,]*(,|$)//g s/encryptable[^,]*(,|$)//g
                s/,quota// s/inlinecrypt// s/,wrappedkey//' tmp/etc/fstab* &> /dev/null \
                        || { print cee61e $err_msg 1>&2; kill 0; }
